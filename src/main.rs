@@ -1,33 +1,43 @@
-#[macro_use]
 use ndarray::prelude::*;
 use ndarray::Array;
-use rand::distributions;
+use rand::distributions::Gamma;
+#[derive(Debug)]
 
 struct CIM {
-    dims: int32,
-    pims: int32,
-    val : Array::<f64, _>::ones((dims, dims,pims))
+    d:  usize,
+    p:  usize,
+    val : Array3::<f64>
 }
 
-fn create_CIM(dims: int32, pims: int32, alpha: f64, beta: f64) -> CIM {
-    let mut IM = Array::<f64, _>::ones((dims, dims));
-    for (i,j) in (5..10).enumerate(){
-            IM[[i,j]] = 1;
+struct node {
+    index: u32,
+    cim: CIM,
+}
+
+fn create_CIM(d: usize, p:  usize, alpha: f64, beta: f64) -> CIM {
+    let gamma = Gamma::new(alpha, beta);
+    let mut IM = Array3::<f64>::zeros((d,d,p));
+
+    for u in 0..p {
+        for i in 0..d {
+            for j in 0..d {
+                IM[[i, j, u]] = gamma.ind_sample(&mut rand::thread_rng());
+            }
+            IM[[i,i,u]] = -IM.slice(s![i,0..i,u]).sum()-IM.slice(s![i,i+1..,u]).sum();
+        }
     }
-
     CIM {
-        dims: dims,
-        pims: pims,
-
+        d: d,
+        p: p,
+        val : IM
     }
 }
 
 
 fn main() {
-    let a = arr2(&[[1.,2.,3.], [4.,5.,6.]]);
-    let mut b = Array::<f64, _>::ones((2, 3).f());
 
-    b[[0,0]]= b[[0,0]]+1.;
+    let d = 2;
+    let p = 1;
 
-    println!("{}",a+b);
+    println!("{:?}",create_CIM(d,p,1.,2.));
 }

@@ -9,4 +9,4 @@ edition = "2018"
 [dependencies]
 ndarray = "0.14.0"
 nalgebra = "0.24.0"
-rand = "0.8.1"
+rand = "0.5.3"
