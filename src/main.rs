@@ -9,13 +9,11 @@ struct CIM {
     val : Array3::<f64>
 }
 
-
-
 struct NODE {
     index: usize,
     d: usize,
-    params: Array2::<f64>,
-    parents: Vec<u32>,
+    params: Vec<f64>,
+    parents: Vec<usize>,
     parents_d: Vec<usize>,
     cim: CIM,
 }
@@ -24,7 +22,9 @@ struct CTBN{
     nodes: Vec<NODE>
 }
 
-fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: Array2<f64>){
+fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN{
+
+    let mut nodes = Vec::new();
 
     for i in 0..adj.len(){
         let parents = &adj[i];
@@ -34,22 +34,20 @@ fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: Array2<f64>){
             parents_d.push( d[k]);
         }
 
-        let p : usize = parents_d.iter().product();
+        let param = &params[i];
+        let node: NODE = create_node(i, d[i], param.clone(), parents.clone(), parents_d);
 
-       // println!("{:?}",parents);
-        println!("{:?}",p);
-       // let param: array![params.slice(s![..,..,i])];
-   //     let parents_d:  array![d.slice(s![parents])];
-    //    p = parents_dims.product() as usize;
-     //   let cim = create_CIM(dims[i],p,param[0], param[1]);
+        nodes.push(node);
+    }
 
-      //  create_node(i,dims[i],param,parents,parents_d,cim);
+    CTBN{
+        nodes: nodes,
     }
 }
 
-fn create_node(index: usize, d: usize, params: Array2::<f64>, parents: Vec<u32>, parents_d: Vec<usize>, cim: CIM) -> NODE {
+fn create_node(index: usize, d: usize, params: Vec<f64>, parents: Vec<usize>, parents_d: Vec<usize>) -> NODE {
     let p : usize = parents_d.iter().product() ;
-    let cim = create_CIM(d,p,params[[index,0]], params[[index,1]]);
+    let cim = create_CIM(d,p,params[0], params[1]);
 
     NODE {
         index : index,
@@ -70,7 +68,7 @@ fn create_CIM(d: usize, p:  usize, alpha: f64, beta: f64) -> CIM {
             for j in 0..d {
                 IM[[i, j, u]] = gamma.ind_sample(&mut rand::thread_rng());
             }
-            IM[[i,i,u]] = -IM.slice(s![i,0..i,u]).sum()-IM.slice(s![i,i+1..,u]).sum();
+            IM[[i,i,u]] = -IM.slice(s![i,0..i,u]).sum() -IM.slice(s![i,i+1..,u]).sum();
         }
     }
     CIM {
@@ -89,8 +87,11 @@ fn main() {
 
     let adj: [Vec<usize>;3] = [vec![1],vec![2],vec![1,2]];
     let d: [usize;3] = [2,3,2];
-    let params = Array2::<f64>::ones((2,3));
-     create_ctbn(&adj,&d,params);
+    let params:[Vec<f64>;3] = [vec![0.1,0.1],vec![0.1,0.1],vec![0.1,0.1]];
+
+    let ctbn = create_ctbn(&adj,&d,&params);
+
+    println!("{:?}",ctbn.nodes[0].cim);
 
 
 
