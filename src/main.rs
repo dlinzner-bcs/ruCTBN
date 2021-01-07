@@ -1,7 +1,9 @@
 use ndarray::prelude::*;
 use ndarray::Array;
 use rand::distributions::{IndependentSample,Gamma};
-
+use rand::{Rng, thread_rng};
+use rand::distributions::Uniform;
+use rand::distributions::Exp;
 
 #[derive(Debug)]
 struct CIM {
@@ -114,38 +116,79 @@ fn get_condition(node: &NODE, state: Vec<usize>) -> usize {
     convert2dec(par_state,&node.parents_d)
 }
 
-fn get_exit_rate(sampler: SAMPLER) -> f64{
-    1.0
+fn get_exit_rate(node: &NODE, state: Vec<usize>) -> (f64){
+    let c =  &node.cim;
+    (- c.val[[state[node.index], state[node.index],get_condition(node,state)]])
 }
 
-fn generate_sample(sampler: SAMPLER) -> SAMPLE{
-    let state : Vec<usize> = sampler.inital_state;
-    for node in sampler.ctbn.nodes {
+fn get_transition_rates(node: &NODE, state: Vec<usize>) -> (Vec<f64>){
+    let mut IM =  &node.cim.val;
+    let i = state[node.index];
+    let u = get_condition(node,state);
 
-    }
-    SAMPLE{
-        states : vec![1],
-        times  : vec![1.],
-    }
+    let mut a = IM.slice(s![i,0..i,u]).clone();
+    let mut b = IM.slice(s![i,i+1..,u]).clone();
+
+    let mut out = a.to_vec() ;
+    out.push(0.);
+    out.append(&mut b.to_vec());
+    (out)
+
+
+}
+
+
+fn generate_transition(ctbn: &CTBN, state: Vec<usize>) -> (usize,usize,f64){
+
+    //draw location of transition & global survival time
+        let mut cum_ext_rates: Vec<f64> = Vec::new();
+        let mut cum_sum: f64 = 0.;
+        for node in &ctbn.nodes {
+            cum_sum = cum_sum + get_exit_rate(node,state.clone());
+            cum_ext_rates.push(cum_sum );
+        }
+
+        let mut rng = thread_rng();
+        let r_loc = Uniform::new(0., cum_sum);
+        let loc = rng.sample(r_loc);
+
+        //draw location of transition
+        let mut location = cum_ext_rates.iter().position(|&x| x>=loc).unwrap();
+        //draw surivial time
+        let exp = Exp::new(cum_sum);
+        let tau = exp.ind_sample(&mut rand::thread_rng());
+
+    //draw transition given location
+        let mut cum_rates: Vec<f64> = Vec::new();
+        let mut cum_sum: f64 = 0.;
+        let rates = get_transition_rates(&ctbn.nodes[location],state.clone());
+        for rate in rates {
+            cum_sum = cum_sum + rate;
+            cum_rates.push(cum_sum );
+        }
+        let mut rng = thread_rng();
+        let r_trans = Uniform::new(0., cum_sum);
+        let trans = rng.sample(r_trans);
+
+        let mut transition = cum_rates.iter().position(|&x| x>=trans).unwrap();
+
+
+    (location,transition,tau)
 }
 
 
 fn main() {
 
-    let d = 2;
-    let p = 1;
-
     let adj: [Vec<usize>;3] = [vec![1],vec![2],vec![1,2]];
-    let d: [usize;3] = [3,2,3];
-    let params:[Vec<f64>;3] = [vec![0.1,0.1],vec![0.1,0.1],vec![0.1,0.1]];
+    let d: [usize;3] = [4,4,4];
+    let params:[Vec<f64>;3] = [vec![1.,1.],vec![1.,1.],vec![1.,1.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
 
     let state: Vec<usize> = vec![2,1,2];
-    let base: Vec<usize> = vec![3,2,3];
 
-    let node = &ctbn.nodes[2];
-    println!("{:?}", get_condition(&node,state));
+    let node = &ctbn.nodes[2]; // for the noob: copy needs to be implemented for NODE struct - or just reference the original object - needs to be considered if NODE is referenced often
+    println!("{:?}", generate_transition(&ctbn,state));
 
 
 }
