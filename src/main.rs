@@ -25,18 +25,28 @@ struct CTBN{
     nodes: Vec<NODE>
 }
 
-struct SAMPLE{
-    states: Vec<usize>,
-    times:  Vec<f64>,
-}
 
 struct SAMPLER{
     ctbn: CTBN,
-    inital_state: Vec<usize>,
-    init_time: f64,
-    samples: Vec<SAMPLE>,
+    state: Vec<usize>,
+    time: f64,
+    time_max: f64,
+    samples: Vec<(usize,usize,f64)>,
 }
 
+
+fn create_sampler(ctbn: CTBN, state: &Vec<usize>, time_max: &f64) -> SAMPLER {
+    let mut samples:Vec<(usize,usize,f64)> =  Vec::new();
+
+    SAMPLER{
+        ctbn: ctbn,
+        state : state.clone(),
+        time : 0.,
+        time_max : time_max.clone(),
+        samples :  samples,
+    }
+
+}
 
 fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN{
     let mut nodes = Vec::new();
@@ -134,47 +144,63 @@ fn get_transition_rates(node: &NODE, state: Vec<usize>) -> (Vec<f64>){
     out.append(&mut b.to_vec());
     (out)
 
-
 }
 
+impl SAMPLER {
 
-fn generate_transition(ctbn: &CTBN, state: Vec<usize>) -> (usize,usize,f64){
+    fn propagate(&mut self) {
+        let transition = generate_transition(&self.ctbn, &self.state);
+        self.samples.push(  transition);
+        self.update_state(transition);
+    }
+
+    fn update_state(&mut self, transition: (usize, usize, f64)){
+        self.state[transition.0]=transition.1;
+        self.time_max = self.time_max + transition.2;
+    }
+
+    fn set_state(&mut self, state: &Vec<usize>){
+        self.state = state.clone();
+    }
+}
+
+fn generate_transition(ctbn: &CTBN, state: &Vec<usize>) -> (usize, usize, f64) {
 
     //draw location of transition & global survival time
-        let mut cum_ext_rates: Vec<f64> = Vec::new();
-        let mut cum_sum: f64 = 0.;
-        for node in &ctbn.nodes {
-            cum_sum = cum_sum + get_exit_rate(node,state.clone());
-            cum_ext_rates.push(cum_sum );
-        }
+    let mut cum_ext_rates: Vec<f64> = Vec::new();
+    let mut cum_sum: f64 = 0.;
+    for node in &ctbn.nodes {
+        cum_sum = cum_sum + get_exit_rate(node, state.clone());
+        cum_ext_rates.push(cum_sum);
+    }
 
-        let mut rng = thread_rng();
-        let r_loc = Uniform::new(0., cum_sum);
-        let loc = rng.sample(r_loc);
+    let mut rng = thread_rng();
+    let r_loc = Uniform::new(0., cum_sum);
+    let loc = rng.sample(r_loc);
 
-        //draw location of transition
-        let mut location = cum_ext_rates.iter().position(|&x| x>=loc).unwrap();
-        //draw surivial time
-        let exp = Exp::new(cum_sum);
-        let tau = exp.ind_sample(&mut rand::thread_rng());
+    //draw location of transition
+    let location = cum_ext_rates.iter().position(|&x| x >= loc).unwrap();
+    //draw surivial time
+    let exp = Exp::new(cum_sum);
+    let tau = exp.ind_sample(&mut rand::thread_rng());
 
     //draw transition given location
-        let mut cum_rates: Vec<f64> = Vec::new();
-        let mut cum_sum: f64 = 0.;
-        let rates = get_transition_rates(&ctbn.nodes[location],state.clone());
-        for rate in rates {
-            cum_sum = cum_sum + rate;
-            cum_rates.push(cum_sum );
-        }
-        let mut rng = thread_rng();
-        let r_trans = Uniform::new(0., cum_sum);
-        let trans = rng.sample(r_trans);
+    let mut cum_rates: Vec<f64> = Vec::new();
+    let mut cum_sum: f64 = 0.;
+    let rates = get_transition_rates(&ctbn.nodes[location], state.clone());
+    for rate in rates {
+        cum_sum = cum_sum + rate;
+        cum_rates.push(cum_sum);
+    }
+    let mut rng = thread_rng();
+    let r_trans = Uniform::new(0., cum_sum);
+    let trans = rng.sample(r_trans);
 
-        let mut transition = cum_rates.iter().position(|&x| x>=trans).unwrap();
+    let transition = cum_rates.iter().position(|&x| x >= trans).unwrap();
 
-
-    (location,transition,tau)
+    (location, transition, tau)
 }
+
 
 
 fn main() {
@@ -184,11 +210,27 @@ fn main() {
     let params:[Vec<f64>;3] = [vec![1.,1.],vec![1.,1.],vec![1.,1.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
+    let state: Vec<usize> = vec![3,3,3];
+    let mut sampler: SAMPLER = create_sampler(ctbn, &state,&1.);
 
-    let state: Vec<usize> = vec![2,1,2];
+     println!("{:?}",sampler.state);
+    sampler.propagate();
+     println!("{:?}",sampler.state);
+    sampler.propagate();
+     println!("{:?}",sampler.state);
+    sampler.propagate();
+     println!("{:?}",sampler.state);
+    sampler.propagate();
+     println!("{:?}",sampler.state);
+    sampler.propagate();
+     println!("{:?}",sampler.state);
+    sampler.propagate();
+    println!("{:?}",sampler.samples)
 
-    let node = &ctbn.nodes[2]; // for the noob: copy needs to be implemented for NODE struct - or just reference the original object - needs to be considered if NODE is referenced often
-    println!("{:?}", generate_transition(&ctbn,state));
+    //TODO:
+    // generate paths from transitions
+    // add asserts
+    // learn from paths
 
 
 }
