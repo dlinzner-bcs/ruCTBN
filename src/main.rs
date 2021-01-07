@@ -26,29 +26,12 @@ struct CTBN{
 }
 
 
-struct SAMPLER{
-    ctbn: CTBN,
-    state: Vec<usize>,
-    time: f64,
-    time_max: f64,
-    samples: Vec<(usize,usize,f64)>,
-}
-
-
-fn create_sampler(ctbn: CTBN, state: &Vec<usize>, time_max: &f64) -> SAMPLER {
-    let mut samples:Vec<(usize,usize,f64)> =  Vec::new();
-
-    SAMPLER{
-        ctbn: ctbn,
-        state : state.clone(),
-        time : 0.,
-        time_max : time_max.clone(),
-        samples :  samples,
-    }
-
-}
 
 fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN{
+
+    assert_eq!(adj.len(),d.len());
+    assert_eq!(d.len(),params.len());
+
     let mut nodes = Vec::new();
 
     for i in 0..adj.len(){
@@ -146,7 +129,28 @@ fn get_transition_rates(node: &NODE, state: Vec<usize>) -> (Vec<f64>){
 
 }
 
-impl SAMPLER {
+struct SAMPLER <'a>{
+    ctbn: &'a CTBN,
+    state: Vec<usize>,
+    time: f64,
+    time_max: f64,
+    samples: Vec<(usize,usize,f64)>,
+}
+
+fn create_sampler<'a>(ctbn: &'a CTBN, state: &Vec<usize>, time_max: &f64) -> SAMPLER<'a> {
+    let mut samples:Vec<(usize,usize,f64)> =  Vec::new();
+
+    SAMPLER{
+        ctbn: ctbn,
+        state : state.clone(),
+        time : 0.,
+        time_max : time_max.clone(),
+        samples :  samples,
+    }
+
+}
+
+impl SAMPLER <'_>{
 
     fn propagate(&mut self) {
         let transition = generate_transition(&self.ctbn, &self.state);
@@ -156,7 +160,7 @@ impl SAMPLER {
 
     fn update_state(&mut self, transition: (usize, usize, f64)){
         self.state[transition.0]=transition.1;
-        self.time_max = self.time_max + transition.2;
+        self.time = self.time + transition.2;
     }
 
     fn set_state(&mut self, state: &Vec<usize>){
@@ -205,31 +209,24 @@ fn generate_transition(ctbn: &CTBN, state: &Vec<usize>) -> (usize, usize, f64) {
 
 fn main() {
 
-    let adj: [Vec<usize>;3] = [vec![1],vec![2],vec![1,2]];
-    let d: [usize;3] = [4,4,4];
-    let params:[Vec<f64>;3] = [vec![1.,1.],vec![1.,1.],vec![1.,1.]];
+    let adj: [Vec<usize>;6] = [vec![1],vec![2],vec![1,2],vec![4],vec![0,5],vec![1]];
+    let d: [usize;6] = [4,4,4,4,4,4];
+    let params:[Vec<f64>;6] = [vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
-    let state: Vec<usize> = vec![3,3,3];
-    let mut sampler: SAMPLER = create_sampler(ctbn, &state,&1.);
+    let state: Vec<usize> = vec![3,3,3,3,3,3];
+    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&1.);
 
-     println!("{:?}",sampler.state);
-    sampler.propagate();
-     println!("{:?}",sampler.state);
-    sampler.propagate();
-     println!("{:?}",sampler.state);
-    sampler.propagate();
-     println!("{:?}",sampler.state);
-    sampler.propagate();
-     println!("{:?}",sampler.state);
-    sampler.propagate();
-     println!("{:?}",sampler.state);
-    sampler.propagate();
-    println!("{:?}",sampler.samples)
+    for i in 0..20 {
+        println!("{:?}", sampler.time);
+        println!("{:?}", sampler.samples);
+        println!("{:?}", sampler.state);
+        sampler.propagate();
+    }
 
     //TODO:
     // generate paths from transitions
-    // add asserts
+    // add asserts -  added asserts for ctbn creation
     // learn from paths
 
 
