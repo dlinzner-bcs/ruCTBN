@@ -26,6 +26,14 @@ struct CTBN{
 }
 
 
+fn create_stats(d: usize, p: usize) -> STATS{
+    let mut transitions = Array3::<f64>::zeros((d,d,p));
+    let mut survival_times = Array2::<f64>::zeros((d,p));
+    STATS{
+        transitions: transitions,
+        survival_times: survival_times,
+    }
+}
 
 fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN{
 
@@ -56,14 +64,13 @@ fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN{
 fn create_node(index: usize, d: usize, params: Vec<f64>, parents: Vec<usize>, parents_d: Vec<usize>) -> NODE {
     let p : usize = parents_d.iter().product() ;
     let cim = create_cim(d,p,params[0], params[1]);
-
     NODE {
         index : index,
         d: d,
         params: params,
         parents: parents,
         parents_d : parents_d,
-        cim : cim
+        cim : cim,
     }
 }
 
@@ -134,11 +141,11 @@ struct SAMPLER <'a>{
     state: Vec<usize>,
     time: f64,
     time_max: f64,
-    samples: Vec<(usize,usize,f64)>,
+    samples: Vec<Vec<usize>>,
 }
 
 fn create_sampler<'a>(ctbn: &'a CTBN, state: &Vec<usize>, time_max: &f64) -> SAMPLER<'a> {
-    let mut samples:Vec<(usize,usize,f64)> =  Vec::new();
+    let mut samples:Vec<Vec<(usize)>> =  Vec::new();
 
     SAMPLER{
         ctbn: ctbn,
@@ -154,8 +161,9 @@ impl SAMPLER <'_>{
 
     fn propagate(&mut self) {
         let transition = generate_transition(&self.ctbn, &self.state);
-        self.samples.push(  transition);
         self.update_state(transition);
+        let state = self.state.clone();
+        self.samples.push(  state);
     }
 
     fn update_state(&mut self, transition: (usize, usize, f64)){
@@ -163,8 +171,20 @@ impl SAMPLER <'_>{
         self.time = self.time + transition.2;
     }
 
+     fn update_stat(&mut self, transition: (usize, usize, usize, f64)){
+
+    }
+
     fn set_state(&mut self, state: &Vec<usize>){
         self.state = state.clone();
+    }
+
+    fn sample_path(&mut self){
+
+        while self.time <= self.time_max {
+             self.propagate();
+        }
+
     }
 }
 
@@ -202,31 +222,36 @@ fn generate_transition(ctbn: &CTBN, state: &Vec<usize>) -> (usize, usize, f64) {
 
     let transition = cum_rates.iter().position(|&x| x >= trans).unwrap();
 
-    (location, transition, tau)
+    (location,transition,tau)
+
 }
 
+struct LEARNER <'a> {
+    ctbn:&'a CTBN,
+    stats: stats,
+}
 
+struct STATS{
+    transitions: Array3::<f64>,
+    survival_times: Array2::<f64>,
+}
 
 fn main() {
 
     let adj: [Vec<usize>;6] = [vec![1],vec![2],vec![1,2],vec![4],vec![0,5],vec![1]];
-    let d: [usize;6] = [4,4,4,4,4,4];
+    let d: [usize;6] = [2,2,2,2,2,2];
     let params:[Vec<f64>;6] = [vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
-    let state: Vec<usize> = vec![3,3,3,3,3,3];
+    let state: Vec<usize> = vec![1,1,1,1,1,1,1];
     let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&1.);
 
-    for i in 0..20 {
-        println!("{:?}", sampler.time);
-        println!("{:?}", sampler.samples);
-        println!("{:?}", sampler.state);
-        sampler.propagate();
-    }
+    sampler.sample_path();
+    println!("{:?}", sampler.samples);
+
 
     //TODO:
-    // generate paths from transitions
-    // add asserts -  added asserts for ctbn creation
+    // create crate for ctbns - sampler
     // learn from paths
 
 
