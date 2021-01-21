@@ -255,9 +255,8 @@ impl LEARNER {
             let comp: Vec<bool> = s0.iter().zip(s1.iter()).map(|(&b, &v)| b != v).collect();
             let change: usize = comp.iter().find_position(|&&x| x == true).unwrap().0;
 
-            let node = &self.ctbn.nodes[change.clone()];
-            let u = get_condition(node, s0.clone());
-            let mut node = &mut self.ctbn.nodes[change.clone()];
+            let node = &mut self.ctbn.nodes[change.clone()];
+            let u = get_condition(&node, s0.clone());
 
             node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] = node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] + 1;
             node.stats.survival_times[[s0.clone()[change.clone()], u]] =node.stats.survival_times[[s0.clone()[change.clone()], u]] +  tau;
