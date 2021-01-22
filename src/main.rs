@@ -29,16 +29,7 @@ struct CTBN{
 }
 
 
-fn create_stats(d: usize, p: usize) -> STATS{
-    let mut transitions = Array3::<u64>::zeros((d,d,p));
-    let mut survival_times = Array2::<f64>::zeros((d,p));
-    STATS{
-        transitions: transitions,
-        survival_times: survival_times,
-    }
-}
-
-fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN{
+fn create_ctbn(adj: &Vec<Vec<usize>>, d: &Vec<usize>, params: &Vec<Vec<f64>>) -> CTBN{
 
     assert_eq!(adj.len(),d.len());
     assert_eq!(d.len(),params.len());
@@ -68,7 +59,6 @@ fn create_node(index: usize, d: usize, params: Vec<f64>, parents: Vec<usize>, pa
     let p : usize = parents_d.iter().product() ;
     let cim = create_cim(d,p,params[0], params[1]);
     let stats: STATS =create_stats(d,p);
-
     NODE {
         index : index,
         d: d,
@@ -81,23 +71,22 @@ fn create_node(index: usize, d: usize, params: Vec<f64>, parents: Vec<usize>, pa
 }
 
 
-
 fn create_cim(d: usize, p:  usize, alpha: f64, beta: f64) -> CIM {
     let gamma = Gamma::new(alpha, beta);
-    let mut IM = Array3::<f64>::zeros((d,d,p));
+    let mut im = Array3::<f64>::zeros((d, d, p));
 
     for u in 0..p {
         for i in 0..d {
             for j in 0..d {
-                IM[[i, j, u]] = gamma.ind_sample(&mut rand::thread_rng());
+                im[[i, j, u]] = gamma.ind_sample(&mut rand::thread_rng());
             }
-            IM[[i,i,u]] = -IM.slice(s![i,0..i,u]).sum() -IM.slice(s![i,i+1..,u]).sum();
+            im[[i,i,u]] = -im.slice(s![i,0..i,u]).sum() - im.slice(s![i,i+1..,u]).sum();
         }
     }
     CIM {
         d: d,
         p: p,
-        val : IM
+        val : im
     }
 }
 
@@ -130,18 +119,17 @@ fn get_exit_rate(node: &NODE, state: Vec<usize>) -> (f64){
 }
 
 fn get_transition_rates(node: &NODE, state: Vec<usize>) -> (Vec<f64>){
-    let mut IM =  &node.cim.val;
+    let mut im =  &node.cim.val;
     let i = state[node.index];
     let u = get_condition(node,state);
 
-    let mut a = IM.slice(s![i,0..i,u]).clone();
-    let mut b = IM.slice(s![i,i+1..,u]).clone();
+    let mut a = im.slice(s![i,0..i,u]).clone();
+    let mut b = im.slice(s![i,i+1..,u]).clone();
 
     let mut out = a.to_vec() ;
     out.push(0.);
     out.append(&mut b.to_vec());
     (out)
-
 }
 
 struct SAMPLER <'a>{
@@ -154,7 +142,6 @@ struct SAMPLER <'a>{
 
 fn create_sampler<'a>(ctbn: &'a CTBN, state: &Vec<usize>, time_max: &f64) -> SAMPLER<'a> {
     let mut samples:Vec<(Vec<usize>,f64)> =  Vec::new();
-
     SAMPLER{
         ctbn: ctbn,
         state : state.clone(),
@@ -162,11 +149,9 @@ fn create_sampler<'a>(ctbn: &'a CTBN, state: &Vec<usize>, time_max: &f64) -> SAM
         time_max : time_max.clone(),
         samples :  samples,
     }
-
 }
 
 impl SAMPLER <'_>{
-
     fn propagate(&mut self) {
         let transition = generate_transition(&self.ctbn, &self.state);
         self.update_state(transition);
@@ -188,11 +173,9 @@ impl SAMPLER <'_>{
     }
 
     fn sample_path(&mut self){
-
         while self.time <= self.time_max {
              self.propagate();
         }
-
     }
 }
 
@@ -234,60 +217,94 @@ fn generate_transition(ctbn: &CTBN, state: &Vec<usize>) -> (usize, usize, f64) {
 
 }
 
+struct STATS{
+    transitions: Array3::<u64>,
+    survival_times: Array2::<f64>,
+}
+
+fn create_stats(d: usize, p: usize) -> STATS{
+    let mut transitions = Array3::<u64>::zeros((d,d,p));
+    let mut survival_times = Array2::<f64>::zeros((d,p));
+    STATS{
+        transitions: transitions,
+        survival_times: survival_times,
+    }
+}
+
 struct LEARNER  {
+    d: Vec<usize>,
+    params : Vec<Vec<f64>>,
+    data : Vec<Vec<(Vec<usize>,f64)>>,
     ctbn: CTBN,
 }
 
-fn create_learner (ctbn: CTBN ) -> LEARNER {
+fn create_learner (adj: &Vec<Vec<usize>>, d: &Vec<usize>, params: &Vec<Vec<f64>> ) -> LEARNER {
+
+    let mut ctbn = create_ctbn(&adj,&d,&params);
     LEARNER {
+        d : d.clone(),
+        params : params.clone(),
+        data : Vec::new(),
         ctbn: ctbn,
     }
 }
 
 impl LEARNER {
 
-    fn sample2stats(&mut self, samples : Vec<(Vec<usize>,f64)> ) {
-        for i in 0..samples.len()-1 {
-            let  s0 = samples[i].0.clone();
-            let  s1 = samples[i + 1].0.clone();
-            let  tau = samples[i].1.clone();
+    fn compute_stats(&mut self ) {
+        for d in &self.data {
+            let samples = d.clone();
+            for i in 0..samples.len() - 1 {
+                let s0 = samples[i].0.clone();
+                let s1 = samples[i + 1].0.clone();
+                let tau = samples[i].1.clone();
 
-            let comp: Vec<bool> = s0.iter().zip(s1.iter()).map(|(&b, &v)| b != v).collect();
-            let change: usize = comp.iter().find_position(|&&x| x == true).unwrap().0;
+                let comp: Vec<bool> = s0.iter().zip(s1.iter()).map(|(&b, &v)| b != v).collect();
+                let change: usize = comp.iter().find_position(|&&x| x == true).unwrap().0;
 
-            let node = &mut self.ctbn.nodes[change.clone()];
-            let u = get_condition(&node, s0.clone());
+                let node = &mut self.ctbn.nodes[change.clone()];
+                let u = get_condition(&node, s0.clone());
 
-            node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] = node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] + 1;
-            node.stats.survival_times[[s0.clone()[change.clone()], u]] =node.stats.survival_times[[s0.clone()[change.clone()], u]] +  tau;
+                node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] = node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] + 1;
+                node.stats.survival_times[[s0.clone()[change.clone()], u]] = node.stats.survival_times[[s0.clone()[change.clone()], u]] + tau;
+            }
         }
     }
-}
 
-struct STATS{
-    transitions: Array3::<u64>,
-    survival_times: Array2::<f64>,
+    fn add_data(&mut self, samples : &Vec<(Vec<usize>,f64)> ) {
+        self.data.push(samples.clone());
+    }
+
+    fn score_struct(&mut self, adj: &Vec<Vec<usize>>) {
+         let mut ctbn = create_ctbn(&adj,&self.d,&self.params);
+         self.ctbn = ctbn;
+         self.compute_stats();
+    }
+
 }
 
 fn main() {
 
-    let adj: [Vec<usize>;4] = [vec![1],vec![2],vec![1,2],vec![3]];
-    let d: [usize;4] = [2,2,2,2];
-    let params:[Vec<f64>;4] = [vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.]];
+    let adj: Vec<Vec<usize>> =vec![vec![1],vec![2],vec![1,2],vec![3]];
+    let d: Vec<usize> = vec![2,2,2,2];
+    let params:Vec<Vec<f64>> = vec![vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
     let state: Vec<usize> = vec![1,1,1,1];
-    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&1.);
+    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&2.);
+    let mut learner: LEARNER = create_learner(&adj,&d,&params);
 
     sampler.sample_path();
+    sampler.set_state(&state);
    // println!("{:?}", sampler.samples);
 
-    let mut ctbn0 = create_ctbn(&adj,&d,&params);
-    let state: Vec<usize> = vec![1,1,1,1];
-    let mut learner: LEARNER = create_learner(ctbn0);
 
-    learner.sample2stats(sampler.samples);
-
+    learner.add_data(&sampler.samples);
+    sampler.sample_path();
+    learner.add_data(&sampler.samples);
+    learner.score_struct(&adj);
+    println!("{:?}",learner.data);
+   // learner.score_struct(&adj);
 
     //TODO:
     // create crate for ctbns - sampler
