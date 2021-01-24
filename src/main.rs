@@ -6,6 +6,10 @@ use rand::distributions::Uniform;
 use rand::distributions::Exp;
 use rand::seq::sample_slice;
 use itertools::Itertools;
+use mathru::special::gamma;
+use mathru::special::gamma::ln_gamma;
+
+
 
 #[derive(Debug)]
 struct CIM {
@@ -275,37 +279,95 @@ impl LEARNER {
         self.data.push(samples.clone());
     }
 
-    fn score_struct(&mut self, adj: &Vec<Vec<usize>>) {
+    fn score_struct(&mut self, adj: &Vec<Vec<usize>>) -> (f64){
          let mut ctbn = create_ctbn(&adj,&self.d,&self.params);
          self.ctbn = ctbn;
          self.compute_stats();
+
+        let mut score :f64 = 0.;
+
+        for n in &self.ctbn.nodes {
+            let M = n.stats.transitions.clone();
+            let T = n.stats.survival_times.clone();
+            for s in 0..n.d {
+                for s_ in 0..n.d {
+                    for u in 0.. n.parents_d.iter().product() {
+                        score += ln_gamma(M[[s,s_,u]] as f64 + 1.0)-(M[[s,s_,u]] as f64 + 1.0)*(T[[s,u]]+1.0).ln()-ln_gamma(1.0 as f64)+(1.0)*(1.0 as f64).ln()
+                    }
+                }
+            }
+        }
+        (-score)
+    }
+
+
+    fn gen_all_adjs(&mut self, k: usize) -> (Vec<Vec<Vec<usize>>>){
+        let mut par: Vec<usize> = Vec::new();
+        let mut adjs: Vec<Vec<Vec<usize>>>= Vec::new();
+
+        for i in 0..self.ctbn.nodes.len() {
+            let mut pars:  Vec<Vec<usize>>= Vec::new();
+            par = (0..self.ctbn.nodes.len()).collect();
+            par = par.iter().filter(|&&x| x != i).cloned().collect_vec();
+            for m in 0..k {
+                pars.append(&mut par.iter().cloned().combinations(m).clone().collect_vec());
+            }
+            adjs.push(pars.clone());
+        }
+        (adjs)
+    }
+
+    fn learn_structure (&mut self,k : usize) -> (f64, Vec<Vec<usize>>,Vec<f64>) {
+
+        let mut scores:Vec<f64> = Vec::new();
+        let adjs = self.gen_all_adjs(k);
+        let combs = (0..self.ctbn.nodes.len()).map(|x| (0..adjs[x].len())).multi_cartesian_product().collect_vec(); // gen cartension prodcut over all adjs indices (all structures)
+        //println!("{:?}",combs);
+        let mut max_score = f64::INFINITY;
+        let mut max_adj : Vec<Vec<usize>> = Vec::new();
+        for z in combs {
+            let mut adj : Vec<Vec<usize>> = Vec::new();
+            for i in 0..z.len() {
+                adj.push(  adjs[i][z[i]].clone());
+            }
+            //println!("{:?}",adj);
+            let score = self.score_struct(&adj);
+            if score > max_score{
+                max_score = score.clone();
+                max_adj   = adj.clone();
+            }
+            scores.push(score);
+        }
+        let max_score = scores.iter().cloned().fold(0./0., f64::max);
+        (max_score,max_adj,scores)
     }
 
 }
 
 fn main() {
 
-    let adj: Vec<Vec<usize>> =vec![vec![1],vec![2],vec![1,2],vec![3]];
-    let d: Vec<usize> = vec![2,2,2,2];
-    let params:Vec<Vec<f64>> = vec![vec![1.,1.],vec![1.,1.],vec![1.,1.],vec![1.,1.]];
+    let adj: Vec<Vec<usize>> =vec![vec![1],vec![2],vec![1,2]];
+    let d: Vec<usize> = vec![2,2,2];
+    let params:Vec<Vec<f64>> = vec![vec![1.,4.],vec![1.,4.],vec![1.,4.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
-    let state: Vec<usize> = vec![1,1,1,1];
-    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&2.);
+    let state: Vec<usize> = vec![1,1,1];
+    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&20.);
     let mut learner: LEARNER = create_learner(&adj,&d,&params);
 
-    sampler.sample_path();
-    sampler.set_state(&state);
-   // println!("{:?}", sampler.samples);
+    for i in 0..100 {
+        sampler.sample_path();
+        sampler.set_state(&state);
+        learner.add_data(&sampler.samples);
+    }
 
-
-    learner.add_data(&sampler.samples);
-    sampler.sample_path();
-    learner.add_data(&sampler.samples);
-    learner.score_struct(&adj);
-    println!("{:?}",learner.data);
+    let adj0: Vec<Vec<usize>> =vec![vec![0],vec![2],vec![1]];
+    let score = learner.score_struct(&adj);
+    println!("{:?}",score);
+    let score = learner.score_struct(&adj0);
+    println!("{:?}",score);
    // learner.score_struct(&adj);
-
+     println!("{:?}",learner.learn_structure(2));
     //TODO:
     // create crate for ctbns - sampler
     // learn from paths
