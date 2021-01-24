@@ -1,6 +1,7 @@
 use ndarray::prelude::*;
 use ndarray::Array;
 use rand::distributions::{IndependentSample,Gamma};
+use rand::distributions::{Bernoulli, Distribution};
 use rand::{Rng, thread_rng};
 use rand::distributions::Uniform;
 use rand::distributions::Exp;
@@ -83,6 +84,25 @@ fn create_cim(d: usize, p:  usize, alpha: f64, beta: f64) -> CIM {
         for i in 0..d {
             for j in 0..d {
                 im[[i, j, u]] = gamma.ind_sample(&mut rand::thread_rng());
+            }
+            im[[i,i,u]] = -im.slice(s![i,0..i,u]).sum() - im.slice(s![i,i+1..,u]).sum();
+        }
+    }
+    CIM {
+        d: d,
+        p: p,
+        val : im
+    }
+}
+
+fn create_cim_glauber(d: usize, p:  usize, alpha: f64, beta: f64) -> CIM {
+    let gamma = Gamma::new(alpha, beta);
+    let mut im = Array3::<f64>::zeros((d, d, p));
+
+    for u in 0..p {
+        for i in 0..d {
+            for j in 0..d {
+                im[[i, j, u]] = alpha*(1./2. + (-1. as f64 ).powf(i as f64)*((u as f64 )-(p as f64)/2.));
             }
             im[[i,i,u]] = -im.slice(s![i,0..i,u]).sum() - im.slice(s![i,i+1..,u]).sum();
         }
@@ -312,6 +332,7 @@ impl LEARNER {
             for m in 0..k {
                 pars.append(&mut par.iter().cloned().combinations(m).clone().collect_vec());
             }
+            //pars.append(&mut par.iter().cloned().combinations(k).clone().collect_vec());
             adjs.push(pars.clone());
         }
         (adjs)
@@ -323,51 +344,82 @@ impl LEARNER {
         let adjs = self.gen_all_adjs(k);
         let combs = (0..self.ctbn.nodes.len()).map(|x| (0..adjs[x].len())).multi_cartesian_product().collect_vec(); // gen cartension prodcut over all adjs indices (all structures)
         //println!("{:?}",combs);
-        let mut max_score = f64::INFINITY;
+        let mut max_score = -f64::INFINITY;
         let mut max_adj : Vec<Vec<usize>> = Vec::new();
         for z in combs {
             let mut adj : Vec<Vec<usize>> = Vec::new();
             for i in 0..z.len() {
                 adj.push(  adjs[i][z[i]].clone());
             }
-            //println!("{:?}",adj);
-            let score = self.score_struct(&adj);
-            if score > max_score{
+
+            let score = self.score_struct(&adj) ;
+            if (score > max_score) {
                 max_score = score.clone();
                 max_adj   = adj.clone();
             }
             scores.push(score);
         }
-        let max_score = scores.iter().cloned().fold(0./0., f64::max);
+        //let max_score = scores.iter().cloned().fold(0./0., f64::max);
         (max_score,max_adj,scores)
+    }
+
+    fn expected_structure(&mut self, scores: Vec<f64>, k : usize) -> (Array2::<f64>) {
+        let adjs = self.gen_all_adjs(k);
+        let mut w = scores.clone();
+        let norm = scores.iter().sum::<f64>() as f64;
+        for k in 0..scores.len() {
+            w[k] = scores.clone()[k] / norm;
+        }
+        let combs = (0..self.ctbn.nodes.len()).map(|x| (0..adjs[x].len())).multi_cartesian_product().collect_vec(); // gen cartension prodcut over all adjs indices (all structures)
+        //println!("{:?}",combs);
+        let mut exp_struct = Array2::<f64>::zeros((self.ctbn.nodes.len(),self.ctbn.nodes.len()));
+
+        let mut k = 0;
+        for z in combs {
+            for i in 0..z.len() {
+                for j in adjs[i][z[i]].clone() {
+                    exp_struct[[i,j]] +=w[k];
+                }
+
+            }
+
+            k = k + 1 ;
+        }
+        (exp_struct)
     }
 
 }
 
 fn main() {
 
-    let adj: Vec<Vec<usize>> =vec![vec![1],vec![2],vec![1,2]];
-    let d: Vec<usize> = vec![2,2,2];
-    let params:Vec<Vec<f64>> = vec![vec![1.,4.],vec![1.,4.],vec![1.,4.]];
+    let adj: Vec<Vec<usize>> =vec![vec![1],vec![0],vec![1]];
+    let d: Vec<usize> = vec![3,3,3];
+    let params:Vec<Vec<f64>> = vec![vec![0.5,10.],vec![0.5,10.],vec![0.5,10.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
-    let state: Vec<usize> = vec![1,1,1];
-    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&20.);
+    let mut state: Vec<usize> = vec![1,1,1];
+    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&10.);
     let mut learner: LEARNER = create_learner(&adj,&d,&params);
 
-    for i in 0..100 {
+    let d = Bernoulli::new(0.5);
+    for i in 0..500 {
+        for j in 0..3 {
+            let v = d.sample(&mut rand::thread_rng()) as usize;
+            state[j] = v;
+        }
         sampler.sample_path();
         sampler.set_state(&state);
         learner.add_data(&sampler.samples);
     }
 
-    let adj0: Vec<Vec<usize>> =vec![vec![0],vec![2],vec![1]];
+    let adj0: Vec<Vec<usize>> =vec![vec![],vec![2],vec![1]];
     let score = learner.score_struct(&adj);
     println!("{:?}",score);
     let score = learner.score_struct(&adj0);
     println!("{:?}",score);
    // learner.score_struct(&adj);
-     println!("{:?}",learner.learn_structure(2));
+    let out = learner.learn_structure(3);
+    println!("{:?}",learner.expected_structure(out.2,3));
     //TODO:
     // create crate for ctbns - sampler
     // learn from paths
