@@ -205,6 +205,7 @@ impl SAMPLER <'_>{
     }
 
     fn sample_path(&mut self){
+        self.reset();
         while self.time <= self.time_max {
              self.propagate();
         }
@@ -407,7 +408,7 @@ impl LEARNER {
 
 fn main() {
 
-    let adj: Vec<Vec<usize>> =vec![vec![1,2],vec![0],vec![1]];
+    let adj: Vec<Vec<usize>> =vec![vec![1,2],vec![0],vec![]];
     let d: Vec<usize> = vec![3,3,3];
     let params:Vec<Vec<f64>> = vec![vec![1.,4.],vec![1.,4.],vec![1.,4.]];
 
@@ -417,14 +418,13 @@ fn main() {
     let mut learner: LEARNER = create_learner(&adj,&d,&params);
 
     let d = Bernoulli::new(0.5);
-    for i in 0..100 {
+    for i in 0..50 {
         for j in 0..3 {
             let v = d.sample(&mut rand::thread_rng()) as usize;
             state[j] = v;
         }
         //sampler.reset();
         sampler.set_state(&state);
-        sampler.reset();
         sampler.sample_path();
        // println!("{:?}",sampler.samples);
         learner.add_data(&sampler.samples);
