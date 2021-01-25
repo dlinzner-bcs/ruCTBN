@@ -102,7 +102,8 @@ fn create_cim_glauber(d: usize, p:  usize, alpha: f64, beta: f64) -> CIM {
     for u in 0..p {
         for i in 0..d {
             for j in 0..d {
-                im[[i, j, u]] = alpha*(1./2. + (-1. as f64 ).powf(i as f64)*((u as f64 )-(p as f64)/2.));
+                let rate = alpha*(1./2. + (-1. as f64 ).powf(i as f64)*((u as f64 )/(p as f64)))+alpha;
+                im[[i, j, u]] = rate;
             }
             im[[i,i,u]] = -im.slice(s![i,0..i,u]).sum() - im.slice(s![i,i+1..,u]).sum();
         }
@@ -176,11 +177,21 @@ fn create_sampler<'a>(ctbn: &'a CTBN, state: &Vec<usize>, time_max: &f64) -> SAM
 }
 
 impl SAMPLER <'_>{
+
     fn propagate(&mut self) {
         let transition = generate_transition(&self.ctbn, &self.state);
         self.update_state(transition);
         let state = self.state.clone();
-        self.samples.push(  (state,transition.2) );
+        self.samples.push(  (state,self.time) );
+    }
+
+    fn reset(&mut self) {
+        let mut samples:Vec<(Vec<usize>,f64)> =  Vec::new();
+        let state = self.state.clone();
+        samples.push((state,0.));
+        self.time =0.;
+        self.samples = samples;
+
     }
 
     fn update_state(&mut self, transition: (usize, usize, f64)){
@@ -188,9 +199,6 @@ impl SAMPLER <'_>{
         self.time = self.time + transition.2;
     }
 
-     fn update_stat(&mut self, transition: (usize, usize, f64)){
-
-    }
 
     fn set_state(&mut self, state: &Vec<usize>){
         self.state = state.clone();
@@ -201,6 +209,7 @@ impl SAMPLER <'_>{
              self.propagate();
         }
     }
+
 }
 
 fn generate_transition(ctbn: &CTBN, state: &Vec<usize>) -> (usize, usize, f64) {
@@ -277,22 +286,30 @@ impl LEARNER {
 
     fn compute_stats(&mut self ) {
         for d in &self.data {
+
             let samples = d.clone();
             for i in 0..samples.len() - 1 {
                 let s0 = samples[i].0.clone();
-                let s1 = samples[i + 1].0.clone();
-                let tau = samples[i].1.clone();
+                let s1 = samples[i.clone() + 1].0.clone();
+                let tau = samples[i.clone()+1].1.clone() - samples[i.clone()].1.clone();
 
+                //find position where change happens between sample points
                 let comp: Vec<bool> = s0.iter().zip(s1.iter()).map(|(&b, &v)| b != v).collect();
                 let change: usize = comp.iter().find_position(|&&x| x == true).unwrap().0;
 
                 let node = &mut self.ctbn.nodes[change.clone()];
                 let u = get_condition(&node, s0.clone());
 
-                node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] = node.stats.transitions[[s0.clone()[change.clone()], s1.clone()[change.clone()], u]] + 1;
-                node.stats.survival_times[[s0.clone()[change.clone()], u]] = node.stats.survival_times[[s0.clone()[change.clone()], u]] + tau;
+                let s  = s0.clone()[change.clone()];
+                let s_ = s1.clone()[change.clone()];
+
+                node.stats.transitions[[s,s_, u]] = node.stats.transitions[[s,s_, u.clone()]] + 1;
+                node.stats.survival_times[[s, u.clone()]] = node.stats.survival_times[[s, u.clone()]] + tau;
             }
+           // println!("{:?}",self.ctbn.nodes[0].stats.transitions);
+            // println!("{:?}",self.ctbn.nodes[0].stats.survival_times);
         }
+
     }
 
     fn add_data(&mut self, samples : &Vec<(Vec<usize>,f64)> ) {
@@ -300,10 +317,9 @@ impl LEARNER {
     }
 
     fn score_struct(&mut self, adj: &Vec<Vec<usize>>) -> (f64){
-         let mut ctbn = create_ctbn(&adj,&self.d,&self.params);
-         self.ctbn = ctbn;
-         self.compute_stats();
-
+        let mut ctbn = create_ctbn(&adj,&self.d,&self.params);
+        self.ctbn = ctbn;
+        self.compute_stats();
         let mut score :f64 = 0.;
 
         for n in &self.ctbn.nodes {
@@ -311,13 +327,15 @@ impl LEARNER {
             let T = n.stats.survival_times.clone();
             for s in 0..n.d {
                 for s_ in 0..n.d {
-                    for u in 0.. n.parents_d.iter().product() {
-                        score += ln_gamma(M[[s,s_,u]] as f64 + 1.0)-(M[[s,s_,u]] as f64 + 1.0)*(T[[s,u]]+1.0).ln()-ln_gamma(1.0 as f64)+(1.0)*(1.0 as f64).ln()
+                    if (s != s_ ) {
+                        for u in 0..n.parents_d.iter().product() {
+                            score += ln_gamma(M[[s, s_, u]] as f64 + 1.0) - (M[[s, s_, u]] as f64 + 1.0) * (T[[s, u]] + 1.0).ln() - ln_gamma(1.0 as f64) + (1.0) * (1.0 as f64).ln();
+                        }
                     }
                 }
             }
         }
-        (-score)
+        (score)
     }
 
 
@@ -380,21 +398,18 @@ impl LEARNER {
                 for j in adjs[i][z[i]].clone() {
                     exp_struct[[i,j]] +=w[k];
                 }
-
             }
-
             k = k + 1 ;
         }
         (exp_struct)
     }
-
 }
 
 fn main() {
 
-    let adj: Vec<Vec<usize>> =vec![vec![1],vec![0],vec![1]];
+    let adj: Vec<Vec<usize>> =vec![vec![1,2],vec![0],vec![1]];
     let d: Vec<usize> = vec![3,3,3];
-    let params:Vec<Vec<f64>> = vec![vec![0.5,10.],vec![0.5,10.],vec![0.5,10.]];
+    let params:Vec<Vec<f64>> = vec![vec![1.,4.],vec![1.,4.],vec![1.,4.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
     let mut state: Vec<usize> = vec![1,1,1];
@@ -402,14 +417,20 @@ fn main() {
     let mut learner: LEARNER = create_learner(&adj,&d,&params);
 
     let d = Bernoulli::new(0.5);
-    for i in 0..500 {
+    for i in 0..100 {
         for j in 0..3 {
             let v = d.sample(&mut rand::thread_rng()) as usize;
             state[j] = v;
         }
-        sampler.sample_path();
+        //sampler.reset();
         sampler.set_state(&state);
+        sampler.reset();
+        sampler.sample_path();
+       // println!("{:?}",sampler.samples);
         learner.add_data(&sampler.samples);
+
+
+
     }
 
     let adj0: Vec<Vec<usize>> =vec![vec![],vec![2],vec![1]];
@@ -419,7 +440,7 @@ fn main() {
     println!("{:?}",score);
    // learner.score_struct(&adj);
     let out = learner.learn_structure(3);
-    println!("{:?}",learner.expected_structure(out.2,3));
+    println!("{:?}",out);
     //TODO:
     // create crate for ctbns - sampler
     // learn from paths
