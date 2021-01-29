@@ -324,13 +324,13 @@ impl LEARNER {
         let mut score :f64 = 0.;
 
         for n in &self.ctbn.nodes {
-            let M = n.stats.transitions.clone();
-            let T = n.stats.survival_times.clone();
+            let m = n.stats.transitions.clone();
+            let t = n.stats.survival_times.clone();
             for s in 0..n.d {
                 for s_ in 0..n.d {
                     if (s != s_ ) {
                         for u in 0..n.parents_d.iter().product() {
-                            score += ln_gamma(M[[s, s_, u]] as f64 + 1.0) - (M[[s, s_, u]] as f64 + 1.0) * (T[[s, u]] + 1.0).ln() - ln_gamma(1.0 as f64) + (1.0) * (1.0 as f64).ln();
+                            score += ln_gamma(m[[s, s_, u]] as f64 + n.params[0]) - (m[[s, s_, u]] as f64 + n.params[0]-1.0) * (t[[s, u]] + n.params[1]).ln() - ln_gamma(n.params[0]) + (n.params[0]-1.0) * (n.params[1]).ln();
                         }
                     }
                 }
@@ -415,6 +415,8 @@ fn main() {
     let ctbn = create_ctbn(&adj,&d,&params);
     let mut state: Vec<usize> = vec![1,1,1];
     let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&10.);
+
+    let params:Vec<Vec<f64>> = vec![vec![1.,1.],vec![1.,1.],vec![1.,1.]];
     let mut learner: LEARNER = create_learner(&adj,&d,&params);
 
     let d = Bernoulli::new(0.5);
@@ -428,8 +430,6 @@ fn main() {
         sampler.sample_path();
        // println!("{:?}",sampler.samples);
         learner.add_data(&sampler.samples);
-
-
 
     }
 
