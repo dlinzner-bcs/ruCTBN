@@ -443,7 +443,5 @@ fn main() {
     println!("{:?}",out);
     //TODO:
     // create crate for ctbns - sampler
-    // learn from paths
-
-
+    // learn from path
 }
