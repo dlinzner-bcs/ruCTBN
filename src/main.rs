@@ -8,8 +8,8 @@ use rand::distributions::Exp;
 use rand::seq::sample_slice;
 use itertools::Itertools;
 use mathru::special::gamma;
-use mathru::special::gamma::ln_gamma;
-
+//use mathru::special::gamma::ln_gamma;
+use statrs::function::gamma::ln_gamma;
 
 
 #[derive(Debug)]
@@ -252,12 +252,12 @@ fn generate_transition(ctbn: &CTBN, state: &Vec<usize>) -> (usize, usize, f64) {
 }
 
 struct STATS{
-    transitions: Array3::<u64>,
+    transitions: Array3::<f64>,
     survival_times: Array2::<f64>,
 }
 
 fn create_stats(d: usize, p: usize) -> STATS{
-    let mut transitions = Array3::<u64>::zeros((d,d,p));
+    let mut transitions = Array3::<f64>::zeros((d,d,p));
     let mut survival_times = Array2::<f64>::zeros((d,p));
     STATS{
         transitions: transitions,
@@ -289,7 +289,7 @@ impl LEARNER {
         for d in &self.data {
 
             let samples = d.clone();
-            for i in 0..samples.len() - 1 {
+            for i in 0..(samples.len() - 1) {
                 let s0 = samples[i].0.clone();
                 let s1 = samples[i.clone() + 1].0.clone();
                 let tau = samples[i.clone()+1].1.clone() - samples[i.clone()].1.clone();
@@ -304,7 +304,7 @@ impl LEARNER {
                 let s  = s0.clone()[change.clone()];
                 let s_ = s1.clone()[change.clone()];
 
-                node.stats.transitions[[s,s_, u]] = node.stats.transitions[[s,s_, u.clone()]] + 1;
+                node.stats.transitions[[s,s_, u]] = node.stats.transitions[[s,s_, u.clone()]] + 1.;
                 node.stats.survival_times[[s, u.clone()]] = node.stats.survival_times[[s, u.clone()]] + tau;
             }
            // println!("{:?}",self.ctbn.nodes[0].stats.transitions);
@@ -330,7 +330,7 @@ impl LEARNER {
                 for s_ in 0..n.d {
                     if (s != s_ ) {
                         for u in 0..n.parents_d.iter().product() {
-                            score += ln_gamma(m[[s, s_, u]] as f64 + n.params[0]) - (m[[s, s_, u]] as f64 + n.params[0]-1.0) * (t[[s, u]] + n.params[1]).ln() - ln_gamma(n.params[0]) + (n.params[0]-1.0) * (n.params[1]).ln();
+                            score += ln_gamma(m[[s, s_, u]] + n.params[0]) - (m[[s, s_, u]]  + n.params[0]) * (t[[s, u]] + n.params[1]).ln() - ln_gamma(n.params[0]) + (n.params[0]) * (n.params[1]).ln();
                         }
                     }
                 }
@@ -408,19 +408,19 @@ impl LEARNER {
 
 fn main() {
 
-    let adj: Vec<Vec<usize>> =vec![vec![1,2],vec![0],vec![]];
+    let adj: Vec<Vec<usize>> =vec![vec![1,2],vec![],vec![]];
     let d: Vec<usize> = vec![3,3,3];
     let params:Vec<Vec<f64>> = vec![vec![1.,4.],vec![1.,4.],vec![1.,4.]];
 
     let ctbn = create_ctbn(&adj,&d,&params);
     let mut state: Vec<usize> = vec![1,1,1];
-    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&10.);
+    let mut sampler: SAMPLER = create_sampler(&ctbn, &state,&1.);
 
     let params:Vec<Vec<f64>> = vec![vec![1.,1.],vec![1.,1.],vec![1.,1.]];
     let mut learner: LEARNER = create_learner(&adj,&d,&params);
 
     let d = Bernoulli::new(0.5);
-    for i in 0..50 {
+    for i in 0..1000 {
         for j in 0..3 {
             let v = d.sample(&mut rand::thread_rng()) as usize;
             state[j] = v;
@@ -429,15 +429,10 @@ fn main() {
         sampler.set_state(&state);
         sampler.sample_path();
        // println!("{:?}",sampler.samples);
+        //println!("{:?}",sampler.samples);
         learner.add_data(&sampler.samples);
 
     }
-
-    let adj0: Vec<Vec<usize>> =vec![vec![],vec![2],vec![1]];
-    let score = learner.score_struct(&adj);
-    println!("{:?}",score);
-    let score = learner.score_struct(&adj0);
-    println!("{:?}",score);
    // learner.score_struct(&adj);
     let out = learner.learn_structure(3);
     println!("{:?}",out);
