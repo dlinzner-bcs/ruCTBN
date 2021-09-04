@@ -11,6 +11,9 @@ use mathru::special::gamma;
 //use mathru::special::gamma::ln_gamma;
 use statrs::function::gamma::ln_gamma;
 
+struct Test {
+    noise: f64
+}
 
 #[derive(Debug)]
 struct CIM {
