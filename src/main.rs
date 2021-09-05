@@ -3,11 +3,10 @@ mod ctbn;
 mod learner;
 mod sampler;
 
-use rand::distributions::{Bernoulli, Distribution};
-
 use crate::sampler::Sampler;
 use ctbn::CTBN;
 use learner::Learner;
+use rand::distributions::{Bernoulli, Distribution};
 
 fn main() {
     let adj: Vec<Vec<usize>> = vec![vec![1, 2], vec![], vec![]];

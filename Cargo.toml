@@ -1,5 +1,5 @@
 [package]
-name = "rust_training"
+name = "ctbn"
 version = "0.1.0"
 authors = ["dlinzner-bcs <dlinzner90@gmail.com>"]
 edition = "2018"
