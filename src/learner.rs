@@ -1,8 +1,6 @@
-use crate::common::*;
 use crate::ctbn::*;
 use itertools::Itertools;
 use ndarray::prelude::*;
-use ndarray::Array;
 use statrs::function::gamma::ln_gamma;
 
 pub struct Learner {
@@ -18,7 +16,7 @@ impl Learner {
         d: &Vec<usize>,
         params: &Vec<Vec<f64>>,
     ) -> Learner {
-        let mut ctbn = CTBN::create_ctbn(&adj, &d, &params);
+        let ctbn = CTBN::create_ctbn(&adj, &d, &params);
         Learner {
             d: d.clone(),
             params: params.clone(),
@@ -57,8 +55,8 @@ impl Learner {
         self.data.push(samples.clone());
     }
 
-    fn score_struct(&mut self, adj: &Vec<Vec<usize>>) -> (f64) {
-        let mut ctbn = CTBN::create_ctbn(&adj, &self.d, &self.params);
+    fn score_struct(&mut self, adj: &Vec<Vec<usize>>) -> f64 {
+        let ctbn = CTBN::create_ctbn(&adj, &self.d, &self.params);
         self.ctbn = ctbn;
         self.compute_stats();
         let mut score: f64 = 0.;
@@ -68,7 +66,7 @@ impl Learner {
             let t = n.stats.survival_times.clone();
             for s in 0..n.d {
                 for s_ in 0..n.d {
-                    if (s != s_) {
+                    if s != s_ {
                         for u in 0..n.parents_d.iter().product() {
                             score += ln_gamma(m[[s, s_, u]] + n.params[0])
                                 - (m[[s, s_, u]] + n.params[0]) * (t[[s, u]] + n.params[1]).ln()
@@ -79,11 +77,11 @@ impl Learner {
                 }
             }
         }
-        (score)
+        score
     }
 
-    fn gen_all_adjs(&mut self, k: usize) -> (Vec<Vec<Vec<usize>>>) {
-        let mut par: Vec<usize> = Vec::new();
+    fn gen_all_adjs(&mut self, k: usize) -> Vec<Vec<Vec<usize>>> {
+        let mut par: Vec<usize>;
         let mut adjs: Vec<Vec<Vec<usize>>> = Vec::new();
 
         for i in 0..self.ctbn.nodes.len() {
@@ -96,7 +94,7 @@ impl Learner {
             //pars.append(&mut par.iter().cloned().combinations(k).clone().collect_vec());
             adjs.push(pars.clone());
         }
-        (adjs)
+        adjs
     }
 
     pub fn learn_structure(&mut self, k: usize) -> (f64, Vec<Vec<usize>>, Vec<f64>) {
@@ -116,7 +114,7 @@ impl Learner {
             }
 
             let score = self.score_struct(&adj);
-            if (score > max_score) {
+            if score > max_score {
                 max_score = score.clone();
                 max_adj = adj.clone();
             }
@@ -126,7 +124,8 @@ impl Learner {
         (max_score, max_adj, scores)
     }
 
-    fn expected_structure(&mut self, scores: Vec<f64>, k: usize) -> (Array2<f64>) {
+    #[allow(dead_code)]
+    fn expected_structure(&mut self, scores: Vec<f64>, k: usize) -> Array2<f64> {
         let adjs = self.gen_all_adjs(k);
         let mut w = scores.clone();
         let norm = scores.iter().sum::<f64>() as f64;
@@ -149,6 +148,6 @@ impl Learner {
             }
             k = k + 1;
         }
-        (exp_struct)
+        exp_struct
     }
 }

@@ -1,6 +1,8 @@
 use crate::ctbn::*;
+
+#[allow(deprecated)]
+use rand::distributions::IndependentSample;
 use rand::distributions::{Exp, Uniform};
-use rand::distributions::{Gamma, IndependentSample};
 use rand::{thread_rng, Rng};
 
 pub struct Transition {
@@ -27,6 +29,8 @@ impl Transition {
         let location = cum_ext_rates.iter().position(|&x| x >= loc).unwrap();
         //draw surivial time
         let exp = Exp::new(cum_sum);
+
+        #[allow(deprecated)]
         let tau = exp.ind_sample(&mut rand::thread_rng());
 
         //draw transition given location
@@ -61,13 +65,12 @@ pub struct Sampler<'a> {
 
 impl Sampler<'_> {
     pub fn create_sampler<'a>(ctbn: &'a CTBN, state: &Vec<usize>, time_max: &f64) -> Sampler<'a> {
-        let mut samples: Vec<(Vec<usize>, f64)> = Vec::new();
         Sampler {
             ctbn: ctbn,
             state: state.clone(),
             time: 0.,
             time_max: time_max.clone(),
-            samples: samples,
+            samples: Vec::new(),
         }
     }
 

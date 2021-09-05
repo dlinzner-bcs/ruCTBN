@@ -1,6 +1,6 @@
 use crate::common::{convert2dec, Stats};
 use ndarray::prelude::*;
-use ndarray::Array;
+#[allow(deprecated)]
 use rand::distributions::{Gamma, IndependentSample};
 
 #[derive(Debug)]
@@ -30,8 +30,8 @@ impl CIM {
         }
     }
 
-    pub fn create_cim_glauber(d: usize, p: usize, alpha: f64, beta: f64) -> CIM {
-        let gamma = Gamma::new(alpha, beta);
+    #[allow(dead_code)]
+    pub fn create_cim_glauber(d: usize, p: usize, alpha: f64) -> CIM {
         let mut im = Array3::<f64>::zeros((d, d, p));
 
         for u in 0..p {
@@ -64,27 +64,27 @@ pub struct NODE {
 }
 
 impl NODE {
-    pub fn get_exit_rate(&self, state: Vec<usize>) -> (f64) {
+    pub fn get_exit_rate(&self, state: Vec<usize>) -> f64 {
         let c = &self.cim;
-        (-c.val[[
+        -c.val[[
             state[self.index],
             state[self.index],
             get_condition(self, state),
-        ]])
+        ]]
     }
 
-    pub fn get_transition_rates(&self, state: Vec<usize>) -> (Vec<f64>) {
-        let mut im = &self.cim.val;
+    pub fn get_transition_rates(&self, state: Vec<usize>) -> Vec<f64> {
+        let im = &self.cim.val;
         let i = state[self.index];
         let u = get_condition(self, state);
 
-        let mut a = im.slice(s![i, 0..i, u]).clone();
-        let mut b = im.slice(s![i, i + 1.., u]).clone();
+        let a = im.slice(s![i, 0..i, u]).clone();
+        let b = im.slice(s![i, i + 1.., u]).clone();
 
         let mut out = a.to_vec();
         out.push(0.);
         out.append(&mut b.to_vec());
-        (out)
+        out
     }
 }
 

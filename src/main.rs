@@ -3,21 +3,11 @@ mod ctbn;
 mod learner;
 mod sampler;
 
-use itertools::Itertools;
-use mathru::special::gamma;
-use ndarray::prelude::*;
-use ndarray::Array;
-use rand::distributions::Exp;
-use rand::distributions::Uniform;
 use rand::distributions::{Bernoulli, Distribution};
-use rand::distributions::{Gamma, IndependentSample};
-use rand::seq::sample_slice;
-use rand::{thread_rng, Rng};
-//use mathru::special::gamma::ln_gamma;
+
 use crate::sampler::Sampler;
 use ctbn::CTBN;
 use learner::Learner;
-use statrs::function::gamma::ln_gamma;
 
 fn main() {
     let adj: Vec<Vec<usize>> = vec![vec![1, 2], vec![], vec![]];
@@ -32,7 +22,7 @@ fn main() {
     let mut learner: Learner = Learner::create_learner(&adj, &d, &params);
 
     let d = Bernoulli::new(0.5);
-    for i in 0..1000 {
+    for _ in 0..1000 {
         for j in 0..3 {
             let v = d.sample(&mut rand::thread_rng()) as usize;
             state[j] = v;
