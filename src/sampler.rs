@@ -10,12 +10,12 @@ pub struct Transition {
 }
 
 impl Transition {
-    pub fn generate_transition(ctbn: &CTBN, state: &Vec<usize>) -> Transition {
+    pub fn generate_transition(ctbn: &CTBN, state: &[usize]) -> Transition {
         //draw location of transition & global survival time
         let mut cum_ext_rates: Vec<f64> = Vec::new();
         let mut cum_sum: f64 = 0.;
         for node in &ctbn.nodes {
-            cum_sum = cum_sum + node.get_exit_rate(state.clone());
+            cum_sum += node.get_exit_rate(state.to_owned());
             cum_ext_rates.push(cum_sum);
         }
 
@@ -33,9 +33,9 @@ impl Transition {
         //draw transition given location
         let mut cum_rates: Vec<f64> = Vec::new();
         let mut cum_sum: f64 = 0.;
-        let rates = &ctbn.nodes[location].get_transition_rates(state.clone());
+        let rates = &ctbn.nodes[location].get_transition_rates(state.to_owned());
         for rate in rates {
-            cum_sum = cum_sum + rate;
+            cum_sum += rate;
             cum_rates.push(cum_sum);
         }
         let mut rng = thread_rng();
@@ -61,12 +61,12 @@ pub struct Sampler<'a> {
 }
 
 impl Sampler<'_> {
-    pub fn create_sampler<'a>(ctbn: &'a CTBN, state: &Vec<usize>, time_max: &f64) -> Sampler<'a> {
+    pub fn create_sampler<'a>(ctbn: &'a CTBN, state: &[usize], time_max: &f64) -> Sampler<'a> {
         Sampler {
-            ctbn: ctbn,
-            state: state.clone(),
+            ctbn,
+            state: state.to_owned(),
             time: 0.,
-            time_max: time_max.clone(),
+            time_max: *time_max,
             samples: Vec::new(),
         }
     }
