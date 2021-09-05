@@ -1,7 +1,6 @@
 use crate::common::{convert2dec, Stats};
 use ndarray::prelude::*;
-#[allow(deprecated)]
-use rand::distributions::{Gamma, IndependentSample};
+use rand::distributions::{Distribution, Gamma};
 
 #[derive(Debug)]
 struct CIM {
@@ -18,7 +17,7 @@ impl CIM {
         for u in 0..p {
             for i in 0..d {
                 for j in 0..d {
-                    im[[i, j, u]] = gamma.ind_sample(&mut rand::thread_rng());
+                    im[[i, j, u]] = gamma.sample(&mut rand::thread_rng());
                 }
                 im[[i, i, u]] = -im.slice(s![i, 0..i, u]).sum() - im.slice(s![i, i + 1.., u]).sum();
             }

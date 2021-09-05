@@ -1,8 +1,6 @@
 use crate::ctbn::*;
 
-#[allow(deprecated)]
-use rand::distributions::IndependentSample;
-use rand::distributions::{Exp, Uniform};
+use rand::distributions::{Distribution, Exp, Uniform};
 use rand::{thread_rng, Rng};
 
 pub struct Transition {
@@ -30,8 +28,7 @@ impl Transition {
         //draw surivial time
         let exp = Exp::new(cum_sum);
 
-        #[allow(deprecated)]
-        let tau = exp.ind_sample(&mut rand::thread_rng());
+        let tau = exp.sample(&mut rand::thread_rng());
 
         //draw transition given location
         let mut cum_rates: Vec<f64> = Vec::new();
