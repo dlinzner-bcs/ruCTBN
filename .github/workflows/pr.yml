@@ -17,6 +17,7 @@ jobs:
         with:
    	    toolchain: nightly
             components: clippy, rustfmt
+            override: true
       - name: Run ssh-agent
         uses: webfactory/ssh-agent@v0.5.0
         with:
@@ -35,6 +36,7 @@ jobs:
       with:
         toolchain: nightly
         components: rustfmt
+        override: true
     - name: Run rustfmt --check
       uses: actions-rs/cargo@v1
       with:
