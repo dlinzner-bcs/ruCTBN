@@ -1,15 +1,15 @@
 use ndarray::prelude::*;
 
-pub fn convert2dec(input: Vec<usize>, base: &Vec<usize>) -> usize {
+pub fn convert2dec(input: &[usize], base: &[usize]) -> usize {
     let mut dec: usize = 0;
     let mut k: usize = 0;
     for c in input {
         let mut a = 1;
         for b in 0..k {
-            a = a * base[b];
+            a *= base[b];
         }
-        dec = dec + a * c;
-        k = k + 1;
+        dec += a * c;
+        k += 1;
     }
     dec
 }
@@ -24,8 +24,8 @@ impl Stats {
         let transitions = Array3::<f64>::zeros((d, d, p));
         let survival_times = Array2::<f64>::zeros((d, p));
         Stats {
-            transitions: transitions,
-            survival_times: survival_times,
+            transitions,
+            survival_times,
         }
     }
 }

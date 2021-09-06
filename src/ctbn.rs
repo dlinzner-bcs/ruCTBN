@@ -22,11 +22,7 @@ impl CIM {
                 im[[i, i, u]] = -im.slice(s![i, 0..i, u]).sum() - im.slice(s![i, i + 1.., u]).sum();
             }
         }
-        CIM {
-            d: d,
-            p: p,
-            val: im,
-        }
+        CIM { d, p, val: im }
     }
 
     #[allow(dead_code)]
@@ -37,18 +33,14 @@ impl CIM {
             for i in 0..d {
                 for j in 0..d {
                     let rate = alpha
-                        * (1. / 2. + (-1. as f64).powf(i as f64) * ((u as f64) / (p as f64)))
+                        * (1. / 2. + (-1_f64).powf(i as f64) * ((u as f64) / (p as f64)))
                         + alpha;
                     im[[i, j, u]] = rate;
                 }
                 im[[i, i, u]] = -im.slice(s![i, 0..i, u]).sum() - im.slice(s![i, i + 1.., u]).sum();
             }
         }
-        CIM {
-            d: d,
-            p: p,
-            val: im,
-        }
+        CIM { d, p, val: im }
     }
 }
 
@@ -77,8 +69,8 @@ impl NODE {
         let i = state[self.index];
         let u = get_condition(self, state);
 
-        let a = im.slice(s![i, 0..i, u]).clone();
-        let b = im.slice(s![i, i + 1.., u]).clone();
+        let a = im.slice(s![i, 0..i, u]);
+        let b = im.slice(s![i, i + 1.., u]);
 
         let mut out = a.to_vec();
         out.push(0.);
@@ -92,7 +84,7 @@ pub struct CTBN {
 }
 
 impl CTBN {
-    pub fn create_ctbn(adj: &Vec<Vec<usize>>, d: &Vec<usize>, params: &Vec<Vec<f64>>) -> CTBN {
+    pub fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN {
         assert_eq!(adj.len(), d.len());
         assert_eq!(d.len(), params.len());
 
@@ -112,7 +104,7 @@ impl CTBN {
             nodes.push(node);
         }
 
-        CTBN { nodes: nodes }
+        CTBN { nodes }
     }
 
     fn create_node(
@@ -126,13 +118,13 @@ impl CTBN {
         let cim = CIM::create_cim(d, p, params[0], params[1]);
         let stats: Stats = Stats::create_stats(d, p);
         NODE {
-            index: index,
-            d: d,
-            params: params,
-            parents: parents,
-            parents_d: parents_d,
-            cim: cim,
-            stats: stats,
+            index,
+            d,
+            params,
+            parents,
+            parents_d,
+            cim,
+            stats,
         }
     }
 }
@@ -141,7 +133,7 @@ pub fn get_condition(node: &NODE, state: Vec<usize>) -> usize {
     let mut par_state: Vec<usize> = Vec::new();
 
     for p in &node.parents {
-        par_state.push(state[p.clone()]);
+        par_state.push(state[*p]);
     }
-    convert2dec(par_state, &node.parents_d)
+    convert2dec(&par_state, &node.parents_d)
 }

@@ -72,7 +72,7 @@ impl Sampler<'_> {
     }
 
     fn propagate(&mut self) {
-        let transition = Transition::generate_transition(&self.ctbn, &self.state);
+        let transition = Transition::generate_transition(self.ctbn, &self.state);
         self.update_state(transition);
         let state = self.state.clone();
         self.samples.push((state, self.time));
@@ -88,11 +88,11 @@ impl Sampler<'_> {
 
     fn update_state(&mut self, transition: Transition) {
         self.state[transition.location] = transition.target;
-        self.time = self.time + transition.tau;
+        self.time += transition.tau;
     }
 
-    pub fn set_state(&mut self, state: &Vec<usize>) {
-        self.state = state.clone();
+    pub fn set_state(&mut self, state: &[usize]) {
+        self.state = state.to_owned();
     }
 
     pub fn sample_path(&mut self) {
