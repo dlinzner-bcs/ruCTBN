@@ -1,6 +1,7 @@
 use crate::ctbn::*;
 use itertools::Itertools;
 use ndarray::prelude::*;
+use rayon::prelude::*;
 use statrs::function::gamma::ln_gamma;
 
 pub struct Learner {
@@ -53,25 +54,29 @@ impl Learner {
         let ctbn = CTBN::create_ctbn(adj, &self.d, &self.params);
         self.ctbn = ctbn;
         self.compute_stats();
-        let mut score: f64 = 0.;
 
-        for n in &self.ctbn.nodes {
-            let m = n.stats.transitions.clone();
-            let t = n.stats.survival_times.clone();
-            for s in 0..n.d {
-                for s_ in 0..n.d {
-                    if s != s_ {
-                        for u in 0..n.parents_d.iter().product() {
-                            score += ln_gamma(m[[s, s_, u]] + n.params[0])
-                                - (m[[s, s_, u]] + n.params[0]) * (t[[s, u]] + n.params[1]).ln()
-                                - ln_gamma(n.params[0])
-                                + (n.params[0]) * (n.params[1]).ln();
-                        }
-                    }
-                }
-            }
-        }
-        score
+        self.ctbn
+            .nodes
+            .par_iter()
+            .map(|n| {
+                let m = n.stats.transitions.clone();
+                let t = n.stats.survival_times.clone();
+                (0..n.d)
+                    .cartesian_product(0..n.d)
+                    .filter(|&(s, s_)| s != s_)
+                    .map(|(s, s_)| {
+                        (0..n.parents_d.iter().product())
+                            .map(|u| {
+                                ln_gamma(m[[s, s_, u]] + n.params[0])
+                                    - (m[[s, s_, u]] + n.params[0]) * (t[[s, u]] + n.params[1]).ln()
+                                    - ln_gamma(n.params[0])
+                                    + (n.params[0]) * (n.params[1]).ln()
+                            })
+                            .sum::<f64>()
+                    })
+                    .sum::<f64>()
+            })
+            .sum::<f64>()
     }
 
     fn gen_all_adjs(&mut self, k: usize) -> Vec<Vec<Vec<usize>>> {
