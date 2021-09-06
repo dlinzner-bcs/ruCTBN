@@ -26,19 +26,10 @@ fn main() {
             let v = d.sample(&mut rand::thread_rng()) as usize;
             state[j] = v;
         }
-        //sampler.reset();
         sampler.set_state(&state);
         sampler.sample_path();
-        println!("{:?}", sampler.samples);
-        //println!("{:?}",sampler.samples);
         learner.add_data(&sampler.samples);
     }
-    // learner.score_struct(&adj);
     let out = learner.learn_structure(3);
     println!("{:?}", out);
-    let out = learner.learn_structure(3);
-    println!("{:?}", out);
-    //TODO:
-    // create crate for ctbns - sampler
-    // learn from path
 }
