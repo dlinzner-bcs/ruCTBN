@@ -41,7 +41,13 @@ impl Learner {
                 let s_ = s1.clone()[change];
 
                 node.stats.transitions[[s, s_, u]] = node.stats.transitions[[s, s_, u]] + 1.;
-                node.stats.survival_times[[s, u]] = node.stats.survival_times[[s, u]] + tau;
+
+                for k in 0..self.ctbn.nodes.len() {
+                    let u = get_condition(&self.ctbn.nodes[k], s0.clone());
+                    let s = s0.clone()[k];
+                    self.ctbn.nodes[k].stats.survival_times[[s, u]] =
+                        self.ctbn.nodes[k].stats.survival_times[[s, u]] + tau;
+                }
             }
         }
     }
@@ -225,5 +231,12 @@ mod test {
         let mut m_2_expected = Array3::<f64>::zeros((2, 2, 1));
         m_2_expected[[1, 0, 0]] = 1f64;
         assert_eq!(m_2, m_2_expected);
+
+        let t_0 = learner.ctbn.nodes[0].stats.survival_times.clone();
+        let mut t_0_expected = Array2::<f64>::zeros((2, 1));
+        t_0_expected[[0, 0]] = 0.41070506399287515 + 0.8970509477833866 - 0.7830044958310673;
+        t_0_expected[[1, 0]] =
+            0.7830044958310673 - 0.41070506399287515 + 1.085835214572095 - 0.8970509477833866;
+        assert_eq!(t_0, t_0_expected);
     }
 }

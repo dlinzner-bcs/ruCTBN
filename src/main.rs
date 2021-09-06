@@ -9,9 +9,9 @@ use learner::Learner;
 use rand::distributions::{Bernoulli, Distribution};
 
 fn main() {
-    let adj: Vec<Vec<usize>> = vec![vec![], vec![1, 2], vec![]];
+    let adj: Vec<Vec<usize>> = vec![vec![1], vec![2], vec![]];
     let d: Vec<usize> = vec![2, 2, 2];
-    let params: Vec<Vec<f64>> = vec![vec![1., 1.], vec![1., 1.], vec![1., 1.]];
+    let params: Vec<Vec<f64>> = vec![vec![1., 2.], vec![1., 2.], vec![1., 2.]];
 
     let ctbn = CTBN::create_ctbn(&adj, &d, &params);
     let mut state: Vec<usize> = vec![1, 1, 1];
