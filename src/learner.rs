@@ -30,7 +30,7 @@ impl Learner {
                 let s1 = samples[i + 1].0.clone();
                 let tau = samples[i + 1].1 - samples[i].1;
 
-                //find position where change happens between sample points
+                //find position where a change happens between sample points
                 let comp: Vec<bool> = s0.iter().zip(s1.iter()).map(|(&b, &v)| b != v).collect();
                 let change: usize = comp.iter().find_position(|&&x| x).unwrap().0;
 
@@ -192,5 +192,38 @@ mod test {
             vec![vec![], vec![0], vec![1]],
         ];
         assert_eq!(expected, adjs)
+    }
+
+    #[test]
+    fn test_compute_stats_from_sample() {
+        let adj: Vec<Vec<usize>> = vec![vec![], vec![1, 2], vec![]];
+        let d: Vec<usize> = vec![2, 2, 2];
+        let params: Vec<Vec<f64>> = vec![vec![1., 1.], vec![1., 1.], vec![1., 1.]];
+        let mut learner: Learner = Learner::create_learner(&adj, &d, &params);
+
+        let data = vec![
+            (vec![0, 1, 1], 0.0),
+            (vec![1, 1, 1], 0.41070506399287515),
+            (vec![0, 1, 1], 0.7830044958310673),
+            (vec![1, 1, 1], 0.8970509477833866),
+            (vec![1, 1, 0], 1.085835214572095),
+        ];
+        learner.add_data(&data);
+        learner.compute_stats();
+
+        let m_0 = learner.ctbn.nodes[0].stats.transitions.clone();
+        let mut m_0_expected = Array3::<f64>::zeros((2, 2, 1));
+        m_0_expected[[0, 1, 0]] = 2f64;
+        m_0_expected[[1, 0, 0]] = 1f64;
+        assert_eq!(m_0, m_0_expected);
+
+        let m_1 = learner.ctbn.nodes[1].stats.transitions.clone();
+        let m_1_expected = Array3::<f64>::zeros((2, 2, 4));
+        assert_eq!(m_1, m_1_expected);
+
+        let m_2 = learner.ctbn.nodes[2].stats.transitions.clone();
+        let mut m_2_expected = Array3::<f64>::zeros((2, 2, 1));
+        m_2_expected[[1, 0, 0]] = 1f64;
+        assert_eq!(m_2, m_2_expected);
     }
 }

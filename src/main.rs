@@ -10,8 +10,8 @@ use rand::distributions::{Bernoulli, Distribution};
 
 fn main() {
     let adj: Vec<Vec<usize>> = vec![vec![], vec![1, 2], vec![]];
-    let d: Vec<usize> = vec![3, 3, 3];
-    let params: Vec<Vec<f64>> = vec![vec![10., 4.], vec![1., 4.], vec![1., 4.]];
+    let d: Vec<usize> = vec![2, 2, 2];
+    let params: Vec<Vec<f64>> = vec![vec![1., 1.], vec![1., 1.], vec![1., 1.]];
 
     let ctbn = CTBN::create_ctbn(&adj, &d, &params);
     let mut state: Vec<usize> = vec![1, 1, 1];
@@ -21,7 +21,7 @@ fn main() {
     let mut learner: Learner = Learner::create_learner(&adj, &d, &params);
 
     let d = Bernoulli::new(0.5);
-    for _ in 0..1000 {
+    for _ in 0..100 {
         for j in 0..3 {
             let v = d.sample(&mut rand::thread_rng()) as usize;
             state[j] = v;
@@ -29,7 +29,7 @@ fn main() {
         //sampler.reset();
         sampler.set_state(&state);
         sampler.sample_path();
-        // println!("{:?}",sampler.samples);
+        println!("{:?}", sampler.samples);
         //println!("{:?}",sampler.samples);
         learner.add_data(&sampler.samples);
     }
