@@ -29,13 +29,11 @@ fn main() {
         //sampler.reset();
         sampler.set_state(&state);
         sampler.sample_path();
-        println!("{:?}", sampler.samples);
+        //println!("{:?}", sampler.samples);
         //println!("{:?}",sampler.samples);
         learner.add_data(&sampler.samples);
     }
     // learner.score_struct(&adj);
-    let out = learner.learn_structure(3);
-    println!("{:?}", out);
     let out = learner.learn_structure(3);
     println!("{:?}", out);
     //TODO:
