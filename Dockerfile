@@ -14,7 +14,7 @@ RUN apt-get update && \
 WORKDIR /usr/src/ctbn
 COPY . .
 RUN rustup component add rustfmt
-RUN --mount=type=ssh cargo install ctbn --locked
+RUN --mount=type=ssh cargo install --locked
 
 FROM debian:buster-slim
 
