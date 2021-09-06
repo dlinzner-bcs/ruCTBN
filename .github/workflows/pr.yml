@@ -57,3 +57,12 @@ jobs:
       with:
         command: test
         args: -- --ignored
+  test-docker-image:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Test building Docker image
+      env:
+        DOCKER_BUILDKIT: 1
+      run: |
+        docker build --ssh default .
