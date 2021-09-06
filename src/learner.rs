@@ -1,8 +1,6 @@
-use crate::common::*;
 use crate::ctbn::*;
 use itertools::Itertools;
 use ndarray::prelude::*;
-use ndarray::Array;
 use statrs::function::gamma::ln_gamma;
 
 pub struct Learner {
@@ -13,17 +11,13 @@ pub struct Learner {
 }
 
 impl Learner {
-    pub fn create_learner(
-        adj: &Vec<Vec<usize>>,
-        d: &Vec<usize>,
-        params: &Vec<Vec<f64>>,
-    ) -> Learner {
-        let mut ctbn = CTBN::create_ctbn(&adj, &d, &params);
+    pub fn create_learner(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> Learner {
+        let ctbn = CTBN::create_ctbn(&adj, d, params);
         Learner {
-            d: d.clone(),
-            params: params.clone(),
+            d: d.to_owned(),
+            params: params.to_owned(),
             data: Vec::new(),
-            ctbn: ctbn,
+            ctbn,
         }
     }
 
@@ -32,33 +26,31 @@ impl Learner {
             let samples = d.clone();
             for i in 0..(samples.len() - 1) {
                 let s0 = samples[i].0.clone();
-                let s1 = samples[i.clone() + 1].0.clone();
-                let tau = samples[i.clone() + 1].1.clone() - samples[i.clone()].1.clone();
+                let s1 = samples[i + 1].0.clone();
+                let tau = samples[i + 1].1 - samples[i].1;
 
                 //find position where change happens between sample points
                 let comp: Vec<bool> = s0.iter().zip(s1.iter()).map(|(&b, &v)| b != v).collect();
-                let change: usize = comp.iter().find_position(|&&x| x == true).unwrap().0;
+                let change: usize = comp.iter().find_position(|&&x| x).unwrap().0;
 
-                let node = &mut self.ctbn.nodes[change.clone()];
-                let u = get_condition(&node, s0.clone());
+                let node = &mut self.ctbn.nodes[change];
+                let u = get_condition(node, s0.clone());
 
-                let s = s0.clone()[change.clone()];
-                let s_ = s1.clone()[change.clone()];
+                let s = s0.clone()[change];
+                let s_ = s1.clone()[change];
 
-                node.stats.transitions[[s, s_, u]] =
-                    node.stats.transitions[[s, s_, u.clone()]] + 1.;
-                node.stats.survival_times[[s, u.clone()]] =
-                    node.stats.survival_times[[s, u.clone()]] + tau;
+                node.stats.transitions[[s, s_, u]] = node.stats.transitions[[s, s_, u]] + 1.;
+                node.stats.survival_times[[s, u]] = node.stats.survival_times[[s, u]] + tau;
             }
         }
     }
 
-    pub fn add_data(&mut self, samples: &Vec<(Vec<usize>, f64)>) {
-        self.data.push(samples.clone());
+    pub fn add_data(&mut self, samples: &[(Vec<usize>, f64)]) {
+        self.data.push(samples.to_owned());
     }
 
-    fn score_struct(&mut self, adj: &Vec<Vec<usize>>) -> (f64) {
-        let mut ctbn = CTBN::create_ctbn(&adj, &self.d, &self.params);
+    fn score_struct(&mut self, adj: &[Vec<usize>]) -> f64 {
+        let ctbn = CTBN::create_ctbn(adj, &self.d, &self.params);
         self.ctbn = ctbn;
         self.compute_stats();
         let mut score: f64 = 0.;
@@ -68,7 +60,7 @@ impl Learner {
             let t = n.stats.survival_times.clone();
             for s in 0..n.d {
                 for s_ in 0..n.d {
-                    if (s != s_) {
+                    if s != s_ {
                         for u in 0..n.parents_d.iter().product() {
                             score += ln_gamma(m[[s, s_, u]] + n.params[0])
                                 - (m[[s, s_, u]] + n.params[0]) * (t[[s, u]] + n.params[1]).ln()
@@ -79,11 +71,11 @@ impl Learner {
                 }
             }
         }
-        (score)
+        score
     }
 
-    fn gen_all_adjs(&mut self, k: usize) -> (Vec<Vec<Vec<usize>>>) {
-        let mut par: Vec<usize> = Vec::new();
+    fn gen_all_adjs(&mut self, k: usize) -> Vec<Vec<Vec<usize>>> {
+        let mut par: Vec<usize>;
         let mut adjs: Vec<Vec<Vec<usize>>> = Vec::new();
 
         for i in 0..self.ctbn.nodes.len() {
@@ -96,7 +88,7 @@ impl Learner {
             //pars.append(&mut par.iter().cloned().combinations(k).clone().collect_vec());
             adjs.push(pars.clone());
         }
-        (adjs)
+        adjs
     }
 
     pub fn learn_structure(&mut self, k: usize) -> (f64, Vec<Vec<usize>>, Vec<f64>) {
@@ -116,8 +108,8 @@ impl Learner {
             }
 
             let score = self.score_struct(&adj);
-            if (score > max_score) {
-                max_score = score.clone();
+            if score > max_score {
+                max_score = score;
                 max_adj = adj.clone();
             }
             scores.push(score);
@@ -126,13 +118,12 @@ impl Learner {
         (max_score, max_adj, scores)
     }
 
-    fn expected_structure(&mut self, scores: Vec<f64>, k: usize) -> (Array2<f64>) {
+    #[allow(dead_code)]
+    fn expected_structure(&mut self, scores: Vec<f64>, k: usize) -> Array2<f64> {
         let adjs = self.gen_all_adjs(k);
-        let mut w = scores.clone();
         let norm = scores.iter().sum::<f64>() as f64;
-        for k in 0..scores.len() {
-            w[k] = scores.clone()[k] / norm;
-        }
+        let weight = scores.iter().map(|w| w / norm).collect_vec();
+
         let combs = (0..self.ctbn.nodes.len())
             .map(|x| (0..adjs[x].len()))
             .multi_cartesian_product()
@@ -144,11 +135,11 @@ impl Learner {
         for z in combs {
             for i in 0..z.len() {
                 for j in adjs[i][z[i]].clone() {
-                    exp_struct[[i, j]] += w[k];
+                    exp_struct[[i, j]] += weight[k];
                 }
             }
-            k = k + 1;
+            k += 1;
         }
-        (exp_struct)
+        exp_struct
     }
 }
