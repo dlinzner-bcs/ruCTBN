@@ -61,6 +61,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Run ssh-agent
+      uses: webfactory/ssh-agent@v0.5.0
+      with:
+        ssh-private-key: ${{ secrets.CI_BOT_SSH_KEY }}
     - name: Test building Docker image
       env:
         DOCKER_BUILDKIT: 1
