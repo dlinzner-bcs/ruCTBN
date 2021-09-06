@@ -111,7 +111,6 @@ impl Learner {
             for i in 0..z.len() {
                 adj.push(adjs[i][z[i]].clone());
             }
-
             let score = self.score_struct(&adj);
             if score > max_score {
                 max_score = score;
@@ -146,5 +145,52 @@ impl Learner {
             k += 1;
         }
         exp_struct
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_gen_all_adj_two() {
+        let adj: Vec<Vec<usize>> = vec![vec![], vec![]];
+        let d: Vec<usize> = vec![3, 3];
+        let params: Vec<Vec<f64>> = vec![vec![1., 1.], vec![1., 1.]];
+        let mut learner: Learner = Learner::create_learner(&adj, &d, &params);
+        let adjs = learner.gen_all_adjs(3);
+        println!("{:?}", adjs);
+        let expected = vec![vec![vec![], vec![1]], vec![vec![], vec![0]]];
+        assert_eq!(expected, adjs)
+    }
+
+    #[test]
+    fn test_gen_all_adj_three() {
+        let adj: Vec<Vec<usize>> = vec![vec![], vec![], vec![]];
+        let d: Vec<usize> = vec![3, 3, 3];
+        let params: Vec<Vec<f64>> = vec![vec![1., 1.], vec![1., 1.], vec![1., 1.]];
+        let mut learner: Learner = Learner::create_learner(&adj, &d, &params);
+        let adjs = learner.gen_all_adjs(3);
+        let expected = vec![
+            vec![vec![], vec![1], vec![2], vec![1, 2]],
+            vec![vec![], vec![0], vec![2], vec![0, 2]],
+            vec![vec![], vec![0], vec![1], vec![0, 1]],
+        ];
+        assert_eq!(expected, adjs)
+    }
+
+    #[test]
+    fn test_gen_up_to_two_adj_three() {
+        let adj: Vec<Vec<usize>> = vec![vec![], vec![], vec![]];
+        let d: Vec<usize> = vec![3, 3, 3];
+        let params: Vec<Vec<f64>> = vec![vec![1., 1.], vec![1., 1.], vec![1., 1.]];
+        let mut learner: Learner = Learner::create_learner(&adj, &d, &params);
+        let adjs = learner.gen_all_adjs(2);
+        let expected = vec![
+            vec![vec![], vec![1], vec![2]],
+            vec![vec![], vec![0], vec![2]],
+            vec![vec![], vec![0], vec![1]],
+        ];
+        assert_eq!(expected, adjs)
     }
 }
