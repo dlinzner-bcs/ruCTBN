@@ -11,6 +11,14 @@ pub struct Transition {
 
 impl Transition {
     pub fn generate_transition(ctbn: &CTBN, state: &[usize]) -> Transition {
+        Self::generate_transition_with_rng(ctbn, state, &mut thread_rng())
+    }
+
+    pub fn generate_transition_with_rng<R: Rng>(
+        ctbn: &CTBN,
+        state: &[usize],
+        rng: &mut R,
+    ) -> Transition {
         //draw location of transition & global survival time
         let mut cum_ext_rates: Vec<f64> = Vec::new();
         let mut cum_sum: f64 = 0.;
@@ -19,7 +27,6 @@ impl Transition {
             cum_ext_rates.push(cum_sum);
         }
 
-        let mut rng = thread_rng();
         let r_loc = Uniform::new(0., cum_sum);
         let loc = rng.sample(r_loc);
 
@@ -28,7 +35,7 @@ impl Transition {
         //draw surivial time
         let exp = Exp::new(cum_sum);
 
-        let tau = exp.sample(&mut rand::thread_rng());
+        let tau = exp.sample(rng);
 
         //draw transition given location
         let mut cum_rates: Vec<f64> = Vec::new();
@@ -38,7 +45,6 @@ impl Transition {
             cum_sum += rate;
             cum_rates.push(cum_sum);
         }
-        let mut rng = thread_rng();
         let r_trans = Uniform::new(0., cum_sum);
         let trans = rng.sample(r_trans);
 
@@ -71,8 +77,8 @@ impl Sampler<'_> {
         }
     }
 
-    fn propagate(&mut self) {
-        let transition = Transition::generate_transition(self.ctbn, &self.state);
+    fn propagate_with_rng<R: Rng>(&mut self, rng: &mut R) {
+        let transition = Transition::generate_transition_with_rng(self.ctbn, &self.state, rng);
         self.update_state(transition);
         let state = self.state.clone();
         self.samples.push((state, self.time));
@@ -96,9 +102,24 @@ impl Sampler<'_> {
     }
 
     pub fn sample_path(&mut self) {
+        self.sample_path_with_rng(&mut thread_rng());
+    }
+
+    pub fn sample_path_with_rng<R: Rng>(&mut self, rng: &mut R) {
         self.reset();
         while self.time <= self.time_max {
-            self.propagate();
+            self.propagate_with_rng(rng);
         }
+    }
+
+    pub fn state_at(&self, time: f64) -> Option<&[usize]> {
+        if time < 0.0 {
+            return None;
+        }
+        self.samples
+            .iter()
+            .take_while(|sample| sample.1 <= time)
+            .last()
+            .map(|sample| sample.0.as_slice())
     }
 }

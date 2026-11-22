@@ -1,0 +1,3 @@
+[submodule "ssl-ctbn"]
+	path = ssl-ctbn
+	url = git@github.com:dlinzner-bcs/ssl-ctbn.git

@@ -1,11 +1,6 @@
-mod common;
-mod ctbn;
-mod learner;
-mod sampler;
-
-use crate::sampler::Sampler;
-use ctbn::CTBN;
-use learner::Learner;
+use ctbn::ctbn::CTBN;
+use ctbn::learner::Learner;
+use ctbn::sampler::Sampler;
 use rand::distributions::{Bernoulli, Distribution};
 
 fn main() {

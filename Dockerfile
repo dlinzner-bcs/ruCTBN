@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.0.0-experimental
 # http://blog.oddbit.com/post/2019-02-24-docker-build-learns-about-secr/
 
-FROM rust:buster as builder
+FROM rust:bookworm as builder
 
 RUN apt-get update && \
 	apt-get upgrade -yy && \
@@ -16,12 +16,11 @@ COPY . .
 RUN rustup component add rustfmt
 RUN --mount=type=ssh cargo build
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update && \
 		apt-get install -y ca-certificates && \
 		rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8000 50051
-
 
