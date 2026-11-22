@@ -3,13 +3,42 @@ use ndarray::prelude::*;
 use rand::distributions::{Distribution, Gamma};
 
 #[derive(Debug)]
-struct CIM {
+pub struct CIM {
     pub d: usize,
-    p: usize,
-    val: Array3<f64>,
+    pub p: usize,
+    pub val: Array3<f64>,
 }
 
 impl CIM {
+    pub fn from_rates(d: usize, p: usize, val: Array3<f64>) -> CIM {
+        assert_eq!(val.dim(), (d, d, p));
+        for condition in 0..p {
+            for from in 0..d {
+                for to in 0..d {
+                    assert!(
+                        val[[from, to, condition]].is_finite(),
+                        "transition rates must be finite"
+                    );
+                    if from != to {
+                        assert!(
+                            val[[from, to, condition]] >= 0.0,
+                            "off-diagonal transition rates must be non-negative"
+                        );
+                    }
+                }
+                let exit_rate: f64 = (0..d)
+                    .filter(|&to| to != from)
+                    .map(|to| val[[from, to, condition]])
+                    .sum();
+                assert!(
+                    (val[[from, from, condition]] + exit_rate).abs() < 1e-10,
+                    "diagonal entries must be the negative sum of the off-diagonal rates"
+                );
+            }
+        }
+        CIM { d, p, val }
+    }
+
     pub fn create_cim(d: usize, p: usize, alpha: f64, beta: f64) -> CIM {
         let gamma = Gamma::new(alpha, beta);
         let mut im = Array3::<f64>::zeros((d, d, p));
@@ -50,11 +79,24 @@ pub struct NODE {
     pub params: Vec<f64>,
     parents: Vec<usize>,
     pub parents_d: Vec<usize>,
-    cim: CIM,
+    pub cim: CIM,
     pub stats: Stats,
 }
 
 impl NODE {
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    pub fn parents(&self) -> &[usize] {
+        &self.parents
+    }
+
+    pub fn transition_rate(&self, from: usize, to: usize, condition: usize) -> f64 {
+        assert!(from < self.d && to < self.d && condition < self.cim.p);
+        self.cim.val[[from, to, condition]]
+    }
+
     pub fn get_exit_rate(&self, state: Vec<usize>) -> f64 {
         let c = &self.cim;
         -c.val[[
@@ -84,6 +126,39 @@ pub struct CTBN {
 }
 
 impl CTBN {
+    pub fn create_ctbn_from_rates(
+        adj: &[Vec<usize>],
+        d: &[usize],
+        rate_matrices: &[Array3<f64>],
+    ) -> CTBN {
+        assert_eq!(adj.len(), d.len());
+        assert_eq!(d.len(), rate_matrices.len());
+
+        let mut nodes = Vec::new();
+        for (index, parents) in adj.iter().enumerate() {
+            for &parent in parents {
+                assert!(parent < d.len(), "parent index is outside the CTBN");
+            }
+            let parents_d: Vec<usize> = parents.iter().map(|&parent| d[parent]).collect();
+            let p = parents_d.iter().product();
+            let cim = CIM::from_rates(d[index], p, rate_matrices[index].clone());
+            nodes.push(NODE {
+                index,
+                d: d[index],
+                params: Vec::new(),
+                parents: parents.clone(),
+                parents_d,
+                cim,
+                stats: Stats::create_stats(d[index], p),
+            });
+        }
+        CTBN { nodes }
+    }
+
+    pub fn dimensions(&self) -> Vec<usize> {
+        self.nodes.iter().map(|node| node.d).collect()
+    }
+
     pub fn create_ctbn(adj: &[Vec<usize>], d: &[usize], params: &[Vec<f64>]) -> CTBN {
         assert_eq!(adj.len(), d.len());
         assert_eq!(d.len(), params.len());
