@@ -175,9 +175,9 @@ xychart-beta
 
 In this three-node v-structure, exact inference tracks eight joint states while the singleton-cluster solver tracks six one-node states. The collider's conditional rates depend on both parents, illustrating the interaction between coupled parents. Larger networks increase the full joint state space exponentially; increasing cluster size trades additional runtime and memory for retained correlations and exactness.
 
-### Six-node solver comparison
+### Six-node conditioned benchmark
 
-The six-node benchmark includes two coupled v-structures and a directed cycle. Nodes 0 and 1 feed node 2; nodes 3, 4, and 2 feed node 5; and node 5 feeds node 0, forming `X0 -> X2 -> X5 -> X0`. This gives the cluster solver two directed dependencies crossing between its two three-node clusters.
+The conditioned benchmark uses two coupled v-structures and a directed cycle:
 
 ```mermaid
 flowchart LR
@@ -187,100 +187,36 @@ flowchart LR
     X4[Node 4] --> X5
     X2 --> X5
     X5 --> X0
-
-    subgraph A[Cluster A]
-        X0
-        X1
-        X2
-    end
-
-    subgraph B[Cluster B]
-        X3
-        X4
-        X5
-    end
 ```
 
-The benchmark compares exact inference, the faithful SSL-CTBN node-star solver with non-degenerate arithmetic/geometric expected rates, plain singleton mean field, the optional two three-node cluster extension, and direct Gillespie sampling. The six-node workload uses 20 inference repetitions and 20,000 sampled paths. The node-star benchmark is therefore a different posterior-rate model from the base fixed-CIM methods, rather than another spelling of singleton mean field.
+This is the relevant comparison for node-star inference: all solvers use the same fixed CIM, the same fixed initial state, and the same terminal noisy observation. Comparing node-star with a separate arithmetic/geometric posterior model to a fixed-CIM exact solver was invalid and has been removed.
 
-| Solver | Average time | Node 5 `P(state=1)` | Maximum marginal error |
-|---|---:|---:|---:|
-| Exact master equation | 138.558 ms/run | 0.432803 | 0 |
-| SSL node-star with distinct `R`/`tilde R` | 144.943 ms/run | 0.406795 | 0.026008 |
-| Singleton mean field | 25.627 ms/run | 0.471635 | 0.040265 |
-| Two 3-node clusters | 49.650 ms/run | 0.435751 | 0.002948 |
-| Gillespie sampling | 11.374 µs/path | 0.435600 | — |
+At `T=0.7`, the observation likelihoods are `[0.95,0.05]`, `[0.05,0.95]`, `[0.90,0.10]`, `[0.10,0.90]`, `[0.85,0.15]`, and `[0.15,0.85]` for nodes 0–5. The exact posterior is obtained by weighting the 64-state joint terminal distribution. The independent baseline weights each node’s exact terminal prior marginal by its own observation, discarding joint dependence.
+
+| Posterior solver | Node 5 `P(state=1)` | Maximum marginal error |
+|---|---:|---:|
+| Exact joint posterior | 0.703624 | 0 |
+| Independent singleton reweighting | 0.812171 | 0.108546 |
+| SSL node-star | 0.765575 | 0.061950 |
+
+On this same-model posterior task, node-star reduces the maximum marginal error by about 43% relative to independent singleton reweighting. It does not reproduce the exact joint posterior—star is still an approximation—but it performs better by propagating observation information through overlapping child-parent stars.
 
 ```mermaid
 xychart-beta
-    title "Six-node solver runtime (milliseconds)"
-    x-axis ["Exact", "Node-star", "Singleton", "3-node clusters", "Sampling path"]
-    y-axis "Runtime (ms)" 0 --> 160
-    bar [138.558, 144.943, 25.627, 49.650, 0.011374]
+    title "Conditioned node 5 posterior"
+    x-axis ["Exact", "Singleton reweight", "Node-star"]
+    y-axis "P(state=1)" 0 --> 0.9
+    bar [0.703624, 0.812171, 0.765575]
 ```
 
 ```mermaid
 xychart-beta
-    title "Six-node node 5 final probability"
-    x-axis ["Exact", "Node-star", "Singleton", "3-node clusters", "Sampling"]
-    y-axis "P(state=1)" 0 --> 0.55
-    bar [0.432803, 0.406795, 0.471635, 0.435751, 0.435600]
+    title "Maximum conditioned marginal error"
+    x-axis ["Singleton reweight", "Node-star"]
+    y-axis "Maximum absolute error" 0 --> 0.12
+    bar [0.108546, 0.061950]
 ```
 
-Here, exact inference has 64 joint states. The faithful node-star solver tracks 12 singleton state values plus 12 backward-response values, while the separate disjoint extension tracks 16 cluster-state values when configured as two three-node clusters. The benchmark gives the collider nodes distinct arithmetic and geometric posterior means (`tilde R` off-diagonals are 12–18% below `R`), so the paper-specific rate handling is exercised and node-star no longer collapses to singleton mean field. For a deterministic CIM or degenerate posterior mixture, `R = tilde R`; then the no-observation node-star fixed point does reduce to singleton mean field. The directed cycle is valid because CTBNs use cyclic directed interaction graphs, not a static Bayesian-network DAG.
+The node-star solve is approximately 160 ms for this workload. Runtime is secondary to posterior accuracy here: the method’s forward/backward iteration exists specifically for conditioning on observations. Without evidence and with a degenerate fixed CIM, `rho` remains constant and node-star appropriately reduces to mean field.
 
-### Initial and final state
-
-The benchmark starts every node in state 0. At `t = 0`, therefore, `P(X_i = 1) = 0` for all six nodes. The final values compare the full solver with the two three-node cluster solver:
-
-| Node | Initial `P(state=1)` | Exact final `P(state=1)` | Cluster final `P(state=1)` |
-|---|---:|---:|---:|
-| 0 | 0.000000 | 0.377888 | 0.378430 |
-| 1 | 0.000000 | 0.263691 | 0.263691 |
-| 2 | 0.000000 | 0.417626 | 0.419725 |
-| 3 | 0.000000 | 0.282976 | 0.282976 |
-| 4 | 0.000000 | 0.477564 | 0.477564 |
-| 5 | 0.000000 | 0.432803 | 0.435751 |
-
-```mermaid
-xychart-beta
-    title "Node marginals: initial versus final"
-    x-axis ["Node 0", "Node 1", "Node 2", "Node 3", "Node 4", "Node 5"]
-    y-axis "P(state=1)" 0 --> 0.6
-    bar [0, 0, 0, 0, 0, 0]
-    bar [0.377888, 0.263691, 0.417626, 0.282976, 0.477564, 0.432803]
-    bar [0.378430, 0.263691, 0.419725, 0.282976, 0.477564, 0.435751]
-```
-
-In chart order, the series are initial state, exact final marginals, and clustered final marginals. The initial series remains on the baseline, while the exact and clustered final bars overlap closely where the approximation is accurate.
-
-### Fixed-state evidence benchmark
-
-For endpoint evidence, both the full initial state and a full final state are fixed. This evaluates the probability of observing the exact joint-state transition, not merely independent node marginals:
-
-```text
-X(0) = [0, 0, 0, 0, 0, 0]
-X(T) = [0, 1, 0, 1, 0, 1]
-```
-
-`DynamicsResult::final_state_probability` reads the matching joint state for exact inference. For cluster approximations, it multiplies the matching state probabilities of all disjoint cluster beliefs.
-
-| Solver | Endpoint evidence probability |
-|---|---:|
-| Exact | 0.003922 |
-| SSL node-star with distinct `R`/`tilde R` | 0.006149 |
-| Singleton mean field | 0.006119 |
-| Two 3-node clusters | 0.005385 |
-| Gillespie sampling | 0.003700 |
-
-The node-star evidence uses the explicit arithmetic/geometric rate model from the benchmark, while exact, cluster mean field, and sampling use the base fixed CIM. Its result therefore is not expected to coincide with the fixed-CIM solvers. The sampling estimate uses 20,000 independent seeded paths and counts only paths whose complete final state matches the evidence. This event is relatively rare, so its Monte Carlo standard error is approximately `sqrt(p(1-p)/20000)`, about `0.00043` for this workload. Larger endpoint samples improve the estimate, while additional cluster size retains more cross-node correlation in the approximated evidence value.
-
-```mermaid
-xychart-beta
-    title "Fixed endpoint evidence probability"
-    x-axis ["Exact", "Node-star", "Singleton", "3-node clusters", "Sampling"]
-    y-axis "Probability" 0 --> 0.007
-    bar [0.003922, 0.006149, 0.006119, 0.005385, 0.003700]
-```
-
-To add a benchmark to the tables, update `examples/dynamics_benchmark.rs`, run it in release mode several times, and report the machine, workload, and full result rather than relying on debug-build timings.
+To add a benchmark to the tables, update `examples/dynamics_benchmark.rs`, run it in release mode, and report the machine, model, evidence, and full result.

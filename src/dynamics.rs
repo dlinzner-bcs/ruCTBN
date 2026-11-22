@@ -13,6 +13,33 @@ pub struct DynamicsResult {
     pub clusters: Vec<Vec<usize>>,
 }
 
+impl DynamicsResult {
+    pub fn final_state_probability(&self, state: &[usize]) -> Result<f64, String> {
+        if state.len() != self.marginals.last().ok_or("empty result")?.len() {
+            return Err("evidence state must contain one state per node".into());
+        }
+        let probabilities = self
+            .cluster_probabilities
+            .last()
+            .ok_or("missing cluster probabilities")?;
+        let mut result = 1.0;
+        for (cluster_index, cluster) in self.clusters.iter().enumerate() {
+            let mut index = 0;
+            let mut stride = 1;
+            for &node in cluster {
+                let dimension = self.marginals.last().unwrap()[node].len();
+                if state[node] >= dimension {
+                    return Err(format!("invalid state for node {}", node));
+                }
+                index += state[node] * stride;
+                stride *= dimension;
+            }
+            result *= probabilities[cluster_index][index];
+        }
+        Ok(result)
+    }
+}
+
 /// Propagates the full CTBN master equation with fourth-order Runge-Kutta.
 pub fn exact_dynamics(
     ctbn: &CTBN,
@@ -33,9 +60,9 @@ pub fn exact_dynamics(
 ///
 /// Transitions inside a cluster use its joint belief, while rates depending on
 /// external parent clusters are averaged using those joint beliefs. Different
-/// external clusters are assumed independent. Singleton clusters therefore
-/// reduce to the star/mean-field approximation used by the CVM MATLAB code in
-/// `ssl-ctbn`; one cluster containing all nodes is numerically exact.
+/// external clusters are assumed independent. This is a separate disjoint
+/// cluster-mean-field extension: singleton clusters match basic mean field, but
+/// not the SSL-CTBN node-star posterior solver. One all-node cluster is exact.
 pub fn cluster_variational_dynamics(
     ctbn: &CTBN,
     initial_state: &[usize],
